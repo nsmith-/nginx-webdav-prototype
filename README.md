@@ -11,7 +11,7 @@ Relevant docs:
 1. Clone the repository to your local machine.
 2. Navigate to the project directory.
 3. Build and run the Podman containers using the following command:
-   ```sh
+```sh
 podman build -t nginx-webdav \
    ./nginx -f nginx.dockerfile
 
