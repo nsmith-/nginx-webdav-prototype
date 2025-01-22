@@ -39,17 +39,9 @@ curl -H "Authorization: Bearer $BEARER_TOKEN" -T README.md http://localhost:8080
 ```
 
 ### Third-party copy
-This doesn't work out of the box. Funnily enough, it doesn't detect the ports are different and just copies `hello.txt` to `afile` in the same directry
 ```sh
-mkdir nginx/webdav2
-podman run -d -p 8081:8080 \
-   -v ./nginx/conf.d:/etc/nginx/conf.d:Z \
-   -v ./nginx/lua:/etc/nginx/lua:Z \
-   -v ./nginx/webdav2:/var/www/webdav:Z \
-   nginx-webdav
-
-curl -L -H "TransferHeaderAuthorization: Bearer $BEARER_TOKEN" \
+curl -H "TransferHeaderAuthorization: Bearer $BEARER_TOKEN" \
    -H "Authorization: Bearer $BEARER_TOKEN" \
-   -H 'Destination: http://localhost:8081/webdav/afile' \
-   -X 'COPY' http://localhost:8080/webdav/hello.txt
+   -H 'Source: https://cmsdcadisk.fnal.gov:2880/dcache/uscmsdisk/store/test/loadtest/source/T1_US_FNAL_Disk/urandom.270MB.file0000' \
+   -X 'COPY' http://localhost:8080/webdav/urandom.270MB.file0000
 ```
