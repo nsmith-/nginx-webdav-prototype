@@ -168,7 +168,7 @@ elseif ngx.var.request_method == "PUT" then
     end
   until not buffer
   local adler_value = adler32_finalize(adler_state)
-  ngx.say("Adler32 is " .. dec(adler_value))
+  ngx.say("Adler32 is " .. adler_value)
   return ngx.exit(ngx.HTTP_OK)
 else
   ngx.status = ngx.HTTP_NOT_IMPLEMENTED
