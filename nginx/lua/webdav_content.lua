@@ -6,6 +6,28 @@ local ffi = require('ffi')
   ssize_t getxattr(const char *path, const char *name, void *value, size_t size);
   ]]
 
+--
+-- Probably a naiive implementation of adler32, but it works
+--
+local function adler32_increment(state, buf)
+  -- State is a = 1, b = 0 for first call
+  local mod_adler = 65521
+  for s in buf:gmatch"." do
+    local c = string.byte(s)
+    state['a'] = (state['a'] + c) % mod_adler
+    state['b'] = (state['b'] + state['a']) % mod_adler
+  end
+  return state
+end
+
+local function adler32_finalize(state)
+  return bit.bor(bit.lshift(state['b'], 16), state['b'])
+end
+
+local function setxattr(path, key, value)
+  ffi.C.setxattr(path, key, value, string.len(value), 0);
+end
+
 local function third_party_pull(source_uri, destination_localpath)
     local httpc = require("resty.http").new()
 
@@ -64,6 +86,7 @@ local function third_party_pull(source_uri, destination_localpath)
     ngx.say("Beginning TPC")
     local bytes_moved = 0
     local last_marker_time = uv.now()
+    local adler_state = {a=1, b=0}
     repeat
         local buffer, err = reader(buffer_size)
         if err then
@@ -82,11 +105,15 @@ local function third_party_pull(source_uri, destination_localpath)
             -- e.g. a C function for https://en.wikipedia.org/wiki/Adler-32
             -- libz has this function
             -- TODO: coroutine https://www.lua.org/manual/5.1/manual.html#2.11
+            adler_state = adler32_increment(adler_state, buffer) 
             file:write(buffer)
         end
     until not buffer
     ngx.say("TPC complete")
     file:close()
+    local adler_value = adler32_finalize(adler_state)
+    ngx.say("Adler32 is " .. adler_value)
+    setxattr(destination_localpath, "user.nginx-webdav.adler32", tostring(adler_value))
 
     -- this allows the connection to be reused by other requests
     ok, err = httpc:set_keepalive()
@@ -96,28 +123,6 @@ local function third_party_pull(source_uri, destination_localpath)
         ngx.say("failed to set keepalive: ", err)
         return ngx.exit(ngx.OK)
     end
-end
-
---
--- Probably a naiive implementation of adler32, but it works
---
-local function adler32_increment(state, buf)
-  -- State is a = 1, b = 0 for first call
-  local mod_adler = 65521
-  for s in buf:gmatch"." do
-    local c = string.byte(s)
-    state['a'] = (state['a'] + c) % mod_adler
-    state['b'] = (state['b'] + state['a']) % mod_adler
-  end
-  return state
-end
-
-local function adler32_finalize(state)
-  return bit.bor(bit.lshift(state['b'], 16), state['b'])
-end
-
-local function setxattr(path, key, value)
-  ffi.C.setxattr(path, key, value, string.len(value), 0);
 end
 
 local function getxattr(path, key, value)
