@@ -1,5 +1,10 @@
 local uv = require('luv')
 local ngx = require('ngx')
+local ffi = require('ffi')
+  ffi.cdef[[
+  int setxattr(const char *path, const char *name, const void *value, size_t size, int flags);
+  ssize_t getxattr(const char *path, const char *name, void *value, size_t size);
+  ]]
 
 local function third_party_pull(source_uri, destination_localpath)
     local httpc = require("resty.http").new()
@@ -93,6 +98,9 @@ local function third_party_pull(source_uri, destination_localpath)
     end
 end
 
+--
+-- Probably a naiive implementation of adler32, but it works
+--
 local function adler32_increment(state, buf)
   -- State is a = 1, b = 0 for first call
   local mod_adler = 65521
@@ -106,6 +114,17 @@ end
 
 local function adler32_finalize(state)
   return bit.bor(bit.lshift(state['b'], 16), state['b'])
+end
+
+local function setxattr(path, key, value)
+  ffi.C.setxattr(path, key, value, string.len(value), 0);
+end
+
+local function getxattr(path, key, value)
+  -- FIXME this doesn't work at all since we need to receive the string back
+  -- from a pointer to a void*
+  -- https://luajit.org/ext_ffi_tutorial.html
+  return ffi.C.getxattr(path, key, value, string.len(value), 0);
 end
 
 if ngx.var.request_method == "COPY" then
@@ -169,6 +188,7 @@ elseif ngx.var.request_method == "PUT" then
   until not buffer
   local adler_value = adler32_finalize(adler_state)
   ngx.say("Adler32 is " .. adler_value)
+  setxattr("/var/www" .. ngx.var.request_uri, "user.nginx-webdav.adler32", tostring(adler_value))
   return ngx.exit(ngx.HTTP_OK)
 else
   ngx.status = ngx.HTTP_NOT_IMPLEMENTED
