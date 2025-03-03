@@ -15,10 +15,13 @@ Relevant docs:
 podman build -t nginx-webdav \
    ./nginx -f nginx.dockerfile
 
+mkdir data
+echo "Hello, world!" > data/hello.txt
+
 podman run -d -p 8080:8080 \
    -v ./nginx/conf.d:/etc/nginx/conf.d:Z \
    -v ./nginx/lua:/etc/nginx/lua:Z \
-   -v ./nginx/webdav:/var/www/webdav:Z \
+   -v ./data:/var/www/webdav:Z \
    nginx-webdav
 ```
 
