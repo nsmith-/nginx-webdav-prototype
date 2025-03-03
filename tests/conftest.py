@@ -175,6 +175,7 @@ def nginx_server(setup_server) -> Iterator[str]:
             "of=/var/www/webdav/hello.txt",
         ],
         input=b"Hello, world!",
+        stderr=subprocess.DEVNULL,
         check=True,
     )
 

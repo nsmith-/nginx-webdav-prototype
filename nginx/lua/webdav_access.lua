@@ -3,6 +3,9 @@ local openidc = require "resty.openidc"
 local config = require "config"
 local http = require "resty.http"
 
+---@type function
+---@param source_uri string
+---@param destination_localpath string
 local function third_party_pull(source_uri, destination_localpath)
     local httpc = http.new()
 
@@ -15,8 +18,8 @@ local function third_party_pull(source_uri, destination_localpath)
         ssl_verify = false, -- FIXME: disable SSL verification for testing
     })
     if not ok then
-        ngx.status = ngx.HTTP_INTERNAL_SERVER_ERROR
-        ngx.say("connection to ", source_uri, " failed: ", err)
+        ngx.status = ngx.HTTP_GATEWAY_TIMEOUT
+        ngx.say("connection to " .. source_uri .. " failed: " .. err)
         return ngx.exit(ngx.OK)
     end
 
@@ -31,9 +34,9 @@ local function third_party_pull(source_uri, destination_localpath)
         headers = headers,
     })
     if not res then
-        -- ngx.status = ngx.HTTP_INTERNAL_SERVER_ERROR
-        ngx.log(ngx.ERR, "request to path" .. path .. " failed: ", err)
-        return ngx.exit(ngx.HTTP_INTERNAL_SERVER_ERROR)
+        ngx.status = ngx.HTTP_BAD_GATEWAY
+        ngx.say("request to path" .. path .. " failed: " .. err)
+        return ngx.exit(ngx.OK)
     end
 
     -- TODO: count redirects and stop after some limit
@@ -138,7 +141,7 @@ if ngx.var.request_method == "COPY" then
     end
 
     if ngx.var.http_destination then
-        ngx.status = ngx.HTTP_NOT_IMPLEMENTED
+        ngx.status = ngx.HTTP_NOT_ALLOWED
         ngx.say("third-party push copy not implemented")
         return ngx.exit(ngx.OK)
     end

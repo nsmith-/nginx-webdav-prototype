@@ -45,6 +45,29 @@ def peer_server() -> Iterable[str]:
     thread.join()
 
 
+def assert_status(response, status_code):
+    assert response.status_code == status_code, (
+        f"{response.status_code} != {status_code}\nText: {response.text}"
+    )
+
+
+def test_tpc_pull_nonexistent(
+    nginx_server: str,
+    wlcg_create_header: dict[str, str],
+    caplog,
+):
+    caplog.set_level(logging.INFO)
+
+    src = "http://nonexistent.host:8081/nonexistent.txt"
+    dst = f"{nginx_server}/nonexistent_tpc_pull.txt"
+
+    headers = dict(wlcg_create_header)
+    headers["Source"] = src
+    headers["TransferHeaderAuthorization"] = "Bearer opensesame"
+    response = httpx.request("COPY", dst, headers=headers)
+    assert_status(response, httpx.codes.GATEWAY_TIMEOUT)
+
+
 def test_tpc_pull(
     nginx_server: str,
     wlcg_create_header: dict[str, str],
@@ -58,20 +81,20 @@ def test_tpc_pull(
 
     headers = dict(wlcg_create_header)
     response = httpx.request("COPY", dst, headers=headers)
-    assert response.status_code == httpx.codes.BAD_REQUEST
+    assert_status(response, httpx.codes.BAD_REQUEST)
 
     headers["Source"] = src
     response = httpx.request("COPY", dst, headers=headers)
-    assert response.status_code == httpx.codes.UNAUTHORIZED
+    assert_status(response, httpx.codes.UNAUTHORIZED)
 
     headers["TransferHeaderAuthorization"] = "Bearer not correct"
     response = httpx.request("COPY", dst, headers=headers)
-    assert response.status_code == httpx.codes.FORBIDDEN
+    assert_status(response, httpx.codes.FORBIDDEN)
 
     headers["TransferHeaderAuthorization"] = "Bearer opensesame"
     response = httpx.request("COPY", dst, headers=headers)
-    assert response.status_code == httpx.codes.OK
+    assert_status(response, httpx.codes.OK)
 
     response = httpx.get(dst, headers=wlcg_create_header)
-    assert response.status_code == httpx.codes.OK
+    assert_status(response, httpx.codes.OK)
     assert response.text == "Hello, world!"
