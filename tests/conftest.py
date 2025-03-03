@@ -3,6 +3,7 @@ import json
 import os
 import shutil
 import subprocess
+import sys
 import time
 import uuid
 from dataclasses import dataclass
@@ -144,25 +145,24 @@ def nginx_server(setup_server) -> Iterator[str]:
     reduce the number of irrelevant log messages in the test output.
     """
     # Start podman container
+    podman_cmd = [
+        "podman",
+        "run",
+        "-d",
+        "-p",
+        "8080:8080",
+        "-v",
+        "./nginx/conf.d:/etc/nginx/conf.d",
+        "-v",
+        "./nginx/lua:/etc/nginx/lua",
+        "--tmpfs",
+        "/var/www/webdav:rw,size=10M,mode=1777",
+    ]
+    if sys.platform == "linux":
+        # This seems necessary for host.containers.internal to resolve inside github actions
+        podman_cmd.extend(["--network", "sirp4netns"])
     container_id = (
-        subprocess.check_output(
-            [
-                "podman",
-                "run",
-                "-d",
-                "-p",
-                "8080:8080",
-                "-v",
-                "./nginx/conf.d:/etc/nginx/conf.d",
-                "-v",
-                "./nginx/lua:/etc/nginx/lua",
-                "--tmpfs",
-                "/var/www/webdav:rw,size=10M,mode=1777",
-                "nginx-webdav",
-            ]
-        )
-        .decode()
-        .strip()
+        subprocess.check_output(podman_cmd + ["nginx-webdav"]).decode().strip()
     )
 
     subprocess.run(
