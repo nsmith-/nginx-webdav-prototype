@@ -1,27 +1,19 @@
 local ngx = require "ngx"
 local uv = require('luv')
+local openidc = require "resty.openidc"
+local config = require "config"
 local upload = require "resty.upload"
 
 local counter = 0
 
 local opts = {
-    -- discovery = "https://cms-auth.web.cern.ch/.well-known/openid-configuration",
-    -- this is the public key from the above provider
-    public_key = [[-----BEGIN PUBLIC KEY-----
-MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAnAO8vabKkITjjDht2dL+
-GCB+zakuHsbwC6xaQWZpVePm3t9o0RO5r+fjgqux5iCPJSTr26QDvpdQ6aGmVWPz
-W7oGKyEYCGwMxK8o69jIfDBkeXPQdWYAu5lWmoY3tm322o65s5luMKEexEwbzgj8
-lFHxGGVK6xj3Vb0ky/bJPNOa2lV3SziD1PuiqoTUbkcI8+pUXMqhkvvVhtLjmhOW
-nYRpXnJvRswePD3s0nSYwAWr7TyRm5r/UCr5MoZpWSUg3eBKw5YFiWY8EIBu70Ys
-I0VY97z1mRO4S1TXwUwzr3NlB3JPmnJUKGRlh6ZceKnqGQWieS87rOn1aEUWNcxa
-LwIDAQAB
------END PUBLIC KEY-----]],
+    public_key = config.data.openidc_pubkey,
 }
 -- call bearer_jwt_verify for OAuth 2.0 JWT validation
-local res, err = require("resty.openidc").bearer_jwt_verify(opts)
+local res, err = openidc.bearer_jwt_verify(opts)
 
 if err or not res then
-    ngx.status = ngx.HTTP_FORBIDDEN
+    ngx.status = ngx.HTTP_UNAUTHORIZED
     ngx.say(err and err or "no access_token provided")
     return ngx.exit(ngx.OK)
 end

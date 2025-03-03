@@ -7,3 +7,10 @@ RUN curl -fL https://github.com/truemedian/luvit-bin/raw/main/install.sh | sh
 RUN /usr/local/openresty/luajit/bin/luarocks install luv
 COPY conf.d /etc/nginx/conf.d
 COPY lua /etc/nginx/lua
+
+RUN yum install -y dnsmasq
+
+COPY docker-entrypoint.sh /
+
+ENTRYPOINT [ "bash" ]
+CMD [ "/docker-entrypoint.sh" ]

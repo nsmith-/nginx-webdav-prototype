@@ -1,0 +1,4 @@
+nging/lua/config.json
+*.pyc
+data/
+.vscode/
