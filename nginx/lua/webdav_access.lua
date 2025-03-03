@@ -31,9 +31,9 @@ local function third_party_pull(source_uri, destination_localpath)
         headers = headers,
     })
     if not res then
-        ngx.status = ngx.HTTP_INTERNAL_SERVER_ERROR
-        ngx.say("request failed: ", err)
-        return ngx.exit(ngx.OK)
+        -- ngx.status = ngx.HTTP_INTERNAL_SERVER_ERROR
+        ngx.log(ngx.ERR, "request to path" .. path .. " failed: ", err)
+        return ngx.exit(ngx.HTTP_INTERNAL_SERVER_ERROR)
     end
 
     -- TODO: count redirects and stop after some limit
