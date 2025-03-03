@@ -1,7 +1,5 @@
-import io
 import json
 import os
-import shutil
 import subprocess
 import sys
 import time
@@ -137,7 +135,7 @@ def setup_server(oidc_mock_idp: MockIdP):
     os.remove("nginx/lua/config.json")
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture(scope="function")
 def nginx_server(setup_server) -> Iterator[str]:
     """A running nginx-webdav server for testing
 
