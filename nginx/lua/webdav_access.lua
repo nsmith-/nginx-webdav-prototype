@@ -96,7 +96,7 @@ local opts = {
 local res, err = openidc.bearer_jwt_verify(opts)
 
 if err or not res then
-    ngx.status = ngx.HTTP_FORBIDDEN
+    ngx.status = ngx.HTTP_UNAUTHORIZED
     ngx.say(err and err or "no access_token provided")
     return ngx.exit(ngx.OK)
 end

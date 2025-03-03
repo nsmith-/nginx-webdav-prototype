@@ -43,8 +43,13 @@ def oidc_mock_idp() -> Iterator[MockIdP]:
     )
 
 
-@pytest.fixture(scope="module")
-def wlcg_read_header(oidc_mock_idp: MockIdP) -> dict[str, str]:
+def _wlcg_token(oidc_mock_idp: MockIdP, scope: str) -> str:
+    """Generate a WLCG-compatible bearer token.
+
+    See:
+    https://github.com/WLCG-AuthZ-WG/common-jwt-profile/blob/master/profile.md
+    for a description of the profile.
+    """
     not_before = int(time.time())
     issued_at = not_before
     expires = not_before + 4 * 3600
@@ -53,14 +58,53 @@ def wlcg_read_header(oidc_mock_idp: MockIdP) -> dict[str, str]:
         "sub": "test_subject",
         "aud": "https://wlcg.cern.ch/jwt/v1/any",
         "nbf": not_before,
-        "scope": "openid offline_access storage.read:/",
-        "iss": "oidc_mock_idp.iss",
+        "scope": scope,
+        "iss": oidc_mock_idp.iss,
         "exp": expires,
         "iat": issued_at,
         "jti": str(uuid.uuid4()),
         "client_id": "test_client_id",
     }
-    bt = oidc_mock_idp.encode_jwt(token)
+    return oidc_mock_idp.encode_jwt(token)
+
+
+@pytest.fixture(scope="module")
+def wlcg_read_header(oidc_mock_idp: MockIdP) -> dict[str, str]:
+    """A WLCG token with read access to /
+
+    storage.read: Read data. Only applies to “online” resources such as disk
+    (as opposed to “nearline” such as tape where the stage authorization should be used in addition).
+    """
+    bt = _wlcg_token(oidc_mock_idp, "openid offline_access storage.read:/")
+    return {"Authorization": f"Bearer {bt}"}
+
+
+@pytest.fixture(scope="module")
+def wlcg_create_header(oidc_mock_idp: MockIdP) -> dict[str, str]:
+    """A WLCG token with create access to /
+
+    storage.create: Upload data. This includes renaming files if the destination file does not
+    already exist. This capability includes the creation of directories and subdirectories at
+    the specified path, and the creation of any non-existent directories required to create the
+    path itself. This authorization does not permit overwriting or deletion of stored data. The
+    driving use case for a separate storage.create scope is to enable the stage-out of data from
+    jobs on a worker node.
+
+    TODO: does this include the ability to read the file after creation? For now, force it.
+    """
+    bt = _wlcg_token(oidc_mock_idp, "openid offline_access storage.read:/ storage.create:/")
+    return {"Authorization": f"Bearer {bt}"}
+
+
+@pytest.fixture(scope="module")
+def wlcg_modify_header(oidc_mock_idp: MockIdP) -> dict[str, str]:
+    """A WLCG token with modify access to /
+
+    storage.modify: Change data. This includes renaming files, creating new files, and writing data.
+    This permission includes overwriting or replacing stored data in addition to deleting or truncating
+    data. This is a strict superset of storage.create.
+    """
+    bt = _wlcg_token(oidc_mock_idp, "openid offline_access storage.read:/ storage.modify:/")
     return {"Authorization": f"Bearer {bt}"}
 
 
@@ -87,22 +131,26 @@ def nginx_server(oidc_mock_idp: MockIdP) -> Iterator[str]:
         f.write("Hello, world!")
 
     # Start podman container
-    container_id =subprocess.check_output(
-        [
-            "podman",
-            "run",
-            "-d",
-            "-p",
-            "8080:8080",
-            "-v",
-            "./nginx/conf.d:/etc/nginx/conf.d:Z",
-            "-v",
-            "./nginx/lua:/etc/nginx/lua:Z",
-            "-v",
-            "./data:/var/www/webdav:Z",
-            "nginx-webdav",
-        ]
-    ).decode().strip()
+    container_id = (
+        subprocess.check_output(
+            [
+                "podman",
+                "run",
+                "-d",
+                "-p",
+                "8080:8080",
+                "-v",
+                "./nginx/conf.d:/etc/nginx/conf.d:Z",
+                "-v",
+                "./nginx/lua:/etc/nginx/lua:Z",
+                "-v",
+                "./data:/var/www/webdav:Z",
+                "nginx-webdav",
+            ]
+        )
+        .decode()
+        .strip()
+    )
 
     # Wait for the container to start
     for _ in range(10):
