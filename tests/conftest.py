@@ -156,9 +156,6 @@ def nginx_server(setup_server) -> Iterator[str]:
         "--tmpfs",
         "/var/www/webdav:rw,size=10M,mode=1777",
     ]
-    if sys.platform == "linux":
-        # This seems necessary for host.containers.internal to resolve inside github actions
-        podman_cmd.extend(["--network=slirp4netns:allow_host_loopback=true"])
     podman_cmd.append("nginx-webdav")
     container_id = subprocess.check_output(podman_cmd).decode().strip()
 
@@ -175,9 +172,6 @@ def nginx_server(setup_server) -> Iterator[str]:
         stderr=subprocess.DEVNULL,
         check=True,
     )
-    subprocess.check_call("podman network inspect podman".split())
-    subprocess.check_call(f"podman exec {container_id} cat /etc/hosts".split())
-    subprocess.check_call(f"podman exec {container_id} cat /etc/resolv.conf".split())
 
     # Wait for the container to start
     for _ in range(10):
