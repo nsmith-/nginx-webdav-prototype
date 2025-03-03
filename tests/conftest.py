@@ -1,3 +1,4 @@
+import io
 import json
 import os
 import shutil
@@ -129,15 +130,9 @@ def setup_server(oidc_mock_idp: MockIdP):
         ["podman", "build", "-t", "nginx-webdav", "nginx", "-f", "nginx.dockerfile"]
     )
 
-    # Make initial data
-    os.makedirs("data")
-    with open("data/hello.txt", "w") as f:
-        f.write("Hello, world!")
-
     yield
 
     # Clean up
-    shutil.rmtree("data")
     os.remove("nginx/lua/config.json")
 
 
@@ -158,16 +153,29 @@ def nginx_server(setup_server) -> Iterator[str]:
                 "-p",
                 "8080:8080",
                 "-v",
-                "./nginx/conf.d:/etc/nginx/conf.d:Z",
+                "./nginx/conf.d:/etc/nginx/conf.d",
                 "-v",
-                "./nginx/lua:/etc/nginx/lua:Z",
-                "-v",
-                "./data:/var/www/webdav:Z",
+                "./nginx/lua:/etc/nginx/lua",
+                "--tmpfs",
+                "/var/www/webdav:rw,size=10M,mode=1777",
                 "nginx-webdav",
             ]
         )
         .decode()
         .strip()
+    )
+
+    subprocess.run(
+        [
+            "podman",
+            "exec",
+            "-i",
+            container_id,
+            "dd",
+            "of=/var/www/webdav/hello.txt",
+        ],
+        input=b"Hello, world!",
+        check=True,
     )
 
     # Wait for the container to start
