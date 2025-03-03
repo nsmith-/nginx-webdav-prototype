@@ -1,6 +1,7 @@
 local uv = require('luv')
 local ngx = require('ngx')
 local ffi = require('ffi')
+local http = require('resty.http')
   ffi.cdef[[
   int setxattr(const char *path, const char *name, const void *value, size_t size, int flags);
   ssize_t getxattr(const char *path, const char *name, void *value, size_t size);
@@ -28,8 +29,11 @@ local function setxattr(path, key, value)
   ffi.C.setxattr(path, key, value, string.len(value), 0);
 end
 
+---@type function
+---@param source_uri string
+---@param destination_localpath string
 local function third_party_pull(source_uri, destination_localpath)
-    local httpc = require("resty.http").new()
+    local httpc = http.new()
 
     -- First establish a connection
     local scheme, host, port, path = table.unpack(httpc:parse_uri(source_uri))
@@ -40,8 +44,8 @@ local function third_party_pull(source_uri, destination_localpath)
         ssl_verify = false, -- FIXME: disable SSL verification for testing
     })
     if not ok then
-        ngx.status = ngx.HTTP_INTERNAL_SERVER_ERROR
-        ngx.say("connection to ", source_uri, " failed: ", err)
+        ngx.status = ngx.HTTP_GATEWAY_TIMEOUT
+        ngx.say("connection to " .. source_uri .. " failed: " .. err)
         return ngx.exit(ngx.OK)
     end
 
@@ -56,8 +60,8 @@ local function third_party_pull(source_uri, destination_localpath)
         headers = headers,
     })
     if not res then
-        ngx.status = ngx.HTTP_INTERNAL_SERVER_ERROR
-        ngx.say("request failed: ", err)
+        ngx.status = ngx.HTTP_BAD_GATEWAY
+        ngx.say("request to path" .. path .. " failed: " .. err)
         return ngx.exit(ngx.OK)
     end
 
@@ -78,6 +82,7 @@ local function third_party_pull(source_uri, destination_localpath)
     if file == nil then
         ngx.status = ngx.HTTP_INTERNAL_SERVER_ERROR
         ngx.say("failed to open destination file: ", err)
+        return ngx.exit(ngx.OK)
     end
 
     -- We can use the `body_reader` iterator, to stream the body according to our desired buffer size.
@@ -89,7 +94,8 @@ local function third_party_pull(source_uri, destination_localpath)
     local adler_state = {a=1, b=0}
     repeat
         local buffer, err = reader(buffer_size)
-        if err then
+        local closed = err:sub(1, 6) == "closed"
+        if err and not closed then
             ngx.log(ngx.ERR, err)
             break
         end
@@ -107,6 +113,9 @@ local function third_party_pull(source_uri, destination_localpath)
             -- TODO: coroutine https://www.lua.org/manual/5.1/manual.html#2.11
             adler_state = adler32_increment(adler_state, buffer) 
             file:write(buffer)
+        end
+        if closed then
+          break
         end
     until not buffer
     ngx.say("TPC complete")
@@ -144,7 +153,7 @@ if ngx.var.request_method == "COPY" then
     end
 
     if ngx.var.http_destination then
-        ngx.status = ngx.HTTP_NOT_IMPLEMENTED
+        ngx.status = ngx.HTTP_NOT_ALLOWED
         ngx.say("third-party push copy not implemented")
         return ngx.exit(ngx.OK)
     end
@@ -157,6 +166,11 @@ if ngx.var.request_method == "COPY" then
 elseif ngx.var.request_method == "GET" then
   -- TODO handle range requests
   local fd = uv.fs_open("/var/www" .. ngx.var.request_uri, "r", 644)
+  if not fd then
+    ngx.status = ngx.HTTP_INTERNAL_SERVER_ERROR
+    ngx.say("Could not open file")
+    return ngx.exit(ngx.OK)
+  end
   -- Amount we try to read from the filesystem at a time, most distributed
   -- filesystems have large "block sizes", so lets try a bigger number than
   -- usual
@@ -165,19 +179,24 @@ elseif ngx.var.request_method == "GET" then
     -- TODO error handling
     local buffer = uv.fs_read(fd, buffer_size)
     ngx.print(buffer)
-  until not buffera
+  until not buffer
   return ngx.exit(ngx.HTTP_OK)
 elseif ngx.var.request_method == "PUT" then
   -- TODO write coalescing, we don't want to send a bunch of <1MB writes to a
   -- distributed filesystem
   -- TODO we don't support ranged writes (screws with checksum)
-  local fd, err = uv.fs_open("/var/www" .. ngx.var.request_uri, "w", tonumber(644, 8))
+  local fd, err = uv.fs_open("/var/www" .. ngx.var.request_uri, "w", tonumber('644', 8))
   if not fd then
     ngx.say("PUT error " .. err)
-    ngx.status = ngx.HTTP_NOT_IMPLEMENTED
+    ngx.status = ngx.HTTP_NOT_ALLOWED
     return ngx.exit(ngx.OK)
   end
   local sock, err = ngx.req.socket()
+  if not sock then
+    ngx.say("PUT error " .. err)
+    ngx.status = ngx.HTTP_INTERNAL_SERVER_ERROR
+    return ngx.exit(ngx.OK)
+  end
   -- Same justification as GET above
   local buffer_size = 64 * 1024 * 1024
   local adler_state = {a=1, b=0}
@@ -196,7 +215,7 @@ elseif ngx.var.request_method == "PUT" then
   setxattr("/var/www" .. ngx.var.request_uri, "user.nginx-webdav.adler32", tostring(adler_value))
   return ngx.exit(ngx.HTTP_OK)
 else
-  ngx.status = ngx.HTTP_NOT_IMPLEMENTED
+  ngx.status = ngx.HTTP_NOT_ALLOWED
   ngx.say("The request " .. ngx.var.request_method .. " is not implemented")
   return ngx.exit(ngx.OK)
 end
