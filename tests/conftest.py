@@ -177,6 +177,7 @@ def nginx_server(setup_server) -> Iterator[str]:
     )
     subprocess.check_call("podman network inspect podman".split())
     subprocess.check_call(f"podman exec {container_id} cat /etc/hosts".split())
+    subprocess.check_call(f"podman exec {container_id} cat /etc/resolv.conf".split())
 
     # Wait for the container to start
     for _ in range(10):
