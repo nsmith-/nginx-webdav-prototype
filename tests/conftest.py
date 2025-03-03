@@ -160,7 +160,7 @@ def nginx_server(setup_server) -> Iterator[str]:
     ]
     if sys.platform == "linux":
         # This seems necessary for host.containers.internal to resolve inside github actions
-        podman_cmd.extend(["--network", "sirp4netns"])
+        podman_cmd.extend(["--network=slirp4netns"])
     container_id = (
         subprocess.check_output(podman_cmd + ["nginx-webdav"]).decode().strip()
     )
