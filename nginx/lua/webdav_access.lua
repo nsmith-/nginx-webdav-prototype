@@ -1,9 +1,10 @@
 local ngx = require "ngx"
 local openidc = require "resty.openidc"
 local config = require "config"
+local http = require "resty.http"
 
 local function third_party_pull(source_uri, destination_localpath)
-    local httpc = require("resty.http").new()
+    local httpc = http.new()
 
     -- First establish a connection
     local scheme, host, port, path = table.unpack(httpc:parse_uri(source_uri))
@@ -61,7 +62,8 @@ local function third_party_pull(source_uri, destination_localpath)
 
     repeat
         local buffer, err = reader(buffer_size)
-        if err then
+        local closed = err:sub(1, 6) == "closed"
+        if err and not closed then
             ngx.log(ngx.ERR, err)
             break
         end
@@ -74,6 +76,10 @@ local function third_party_pull(source_uri, destination_localpath)
             -- libz has this function
             -- TODO: coroutine https://www.lua.org/manual/5.1/manual.html#2.11
             file:write(buffer)
+        end
+
+        if closed then
+            break
         end
     until not buffer
 

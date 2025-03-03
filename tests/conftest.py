@@ -25,7 +25,7 @@ class MockIdP:
         return jwt.encode(payload, self.private_key, algorithm="RS256")
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture(scope="session")
 def oidc_mock_idp() -> Iterator[MockIdP]:
     private_key = rsa.generate_private_key(
         public_exponent=65537, key_size=2048, backend=default_backend()
@@ -68,7 +68,7 @@ def _wlcg_token(oidc_mock_idp: MockIdP, scope: str) -> str:
     return oidc_mock_idp.encode_jwt(token)
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture(scope="session")
 def wlcg_read_header(oidc_mock_idp: MockIdP) -> dict[str, str]:
     """A WLCG token with read access to /
 
@@ -79,7 +79,7 @@ def wlcg_read_header(oidc_mock_idp: MockIdP) -> dict[str, str]:
     return {"Authorization": f"Bearer {bt}"}
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture(scope="session")
 def wlcg_create_header(oidc_mock_idp: MockIdP) -> dict[str, str]:
     """A WLCG token with create access to /
 
@@ -92,11 +92,13 @@ def wlcg_create_header(oidc_mock_idp: MockIdP) -> dict[str, str]:
 
     TODO: does this include the ability to read the file after creation? For now, force it.
     """
-    bt = _wlcg_token(oidc_mock_idp, "openid offline_access storage.read:/ storage.create:/")
+    bt = _wlcg_token(
+        oidc_mock_idp, "openid offline_access storage.read:/ storage.create:/"
+    )
     return {"Authorization": f"Bearer {bt}"}
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture(scope="session")
 def wlcg_modify_header(oidc_mock_idp: MockIdP) -> dict[str, str]:
     """A WLCG token with modify access to /
 
@@ -104,12 +106,14 @@ def wlcg_modify_header(oidc_mock_idp: MockIdP) -> dict[str, str]:
     This permission includes overwriting or replacing stored data in addition to deleting or truncating
     data. This is a strict superset of storage.create.
     """
-    bt = _wlcg_token(oidc_mock_idp, "openid offline_access storage.read:/ storage.modify:/")
+    bt = _wlcg_token(
+        oidc_mock_idp, "openid offline_access storage.read:/ storage.modify:/"
+    )
     return {"Authorization": f"Bearer {bt}"}
 
 
-@pytest.fixture(scope="module")
-def nginx_server(oidc_mock_idp: MockIdP) -> Iterator[str]:
+@pytest.fixture(scope="session")
+def setup_server(oidc_mock_idp: MockIdP):
     # Make sure we are in the right place: one up from tests/
     assert os.getcwd() == os.path.dirname(os.path.dirname(__file__))
 
@@ -130,6 +134,20 @@ def nginx_server(oidc_mock_idp: MockIdP) -> Iterator[str]:
     with open("data/hello.txt", "w") as f:
         f.write("Hello, world!")
 
+    yield
+
+    # Clean up
+    shutil.rmtree("data")
+    os.remove("nginx/lua/config.json")
+
+
+@pytest.fixture(scope="module")
+def nginx_server(setup_server) -> Iterator[str]:
+    """A running nginx-webdav server for testing
+
+    It's nice to have a module-scoped fixture for the server, so we can
+    reduce the number of irrelevant log messages in the test output.
+    """
     # Start podman container
     container_id = (
         subprocess.check_output(
@@ -167,7 +185,5 @@ def nginx_server(oidc_mock_idp: MockIdP) -> Iterator[str]:
     subprocess.check_call(["podman", "logs", container_id])
 
     # Stop podman container and clean up
-    subprocess.check_call(["podman", "stop", container_id])
-    subprocess.check_call(["podman", "rm", container_id])
-    shutil.rmtree("data")
-    os.remove("nginx/lua/config.json")
+    subprocess.check_call(["podman", "stop", container_id], stdout=subprocess.DEVNULL)
+    subprocess.check_call(["podman", "rm", container_id], stdout=subprocess.DEVNULL)
