@@ -1,7 +1,13 @@
 local ngx = require "ngx"
+local openidc = require "resty.openidc"
+local config = require "config"
+local http = require "resty.http"
 
+---@type function
+---@param source_uri string
+---@param destination_localpath string
 local function third_party_pull(source_uri, destination_localpath)
-    local httpc = require("resty.http").new()
+    local httpc = http.new()
 
     -- First establish a connection
     local scheme, host, port, path = table.unpack(httpc:parse_uri(source_uri))
@@ -12,8 +18,8 @@ local function third_party_pull(source_uri, destination_localpath)
         ssl_verify = false, -- FIXME: disable SSL verification for testing
     })
     if not ok then
-        ngx.status = ngx.HTTP_INTERNAL_SERVER_ERROR
-        ngx.say("connection to ", source_uri, " failed: ", err)
+        ngx.status = ngx.HTTP_GATEWAY_TIMEOUT
+        ngx.say("connection to " .. source_uri .. " failed: " .. err)
         return ngx.exit(ngx.OK)
     end
 
@@ -28,8 +34,8 @@ local function third_party_pull(source_uri, destination_localpath)
         headers = headers,
     })
     if not res then
-        ngx.status = ngx.HTTP_INTERNAL_SERVER_ERROR
-        ngx.say("request failed: ", err)
+        ngx.status = ngx.HTTP_BAD_GATEWAY
+        ngx.say("request to path" .. path .. " failed: " .. err)
         return ngx.exit(ngx.OK)
     end
 
@@ -59,7 +65,8 @@ local function third_party_pull(source_uri, destination_localpath)
 
     repeat
         local buffer, err = reader(buffer_size)
-        if err then
+        local closed = err:sub(1, 6) == "closed"
+        if err and not closed then
             ngx.log(ngx.ERR, err)
             break
         end
@@ -72,6 +79,10 @@ local function third_party_pull(source_uri, destination_localpath)
             -- libz has this function
             -- TODO: coroutine https://www.lua.org/manual/5.1/manual.html#2.11
             file:write(buffer)
+        end
+
+        if closed then
+            break
         end
     until not buffer
 
@@ -88,23 +99,13 @@ local function third_party_pull(source_uri, destination_localpath)
 end
 
 local opts = {
-    -- discovery = "https://cms-auth.web.cern.ch/.well-known/openid-configuration",
-    -- this is the public key from the above provider
-    public_key = [[-----BEGIN PUBLIC KEY-----
-MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAnAO8vabKkITjjDht2dL+
-GCB+zakuHsbwC6xaQWZpVePm3t9o0RO5r+fjgqux5iCPJSTr26QDvpdQ6aGmVWPz
-W7oGKyEYCGwMxK8o69jIfDBkeXPQdWYAu5lWmoY3tm322o65s5luMKEexEwbzgj8
-lFHxGGVK6xj3Vb0ky/bJPNOa2lV3SziD1PuiqoTUbkcI8+pUXMqhkvvVhtLjmhOW
-nYRpXnJvRswePD3s0nSYwAWr7TyRm5r/UCr5MoZpWSUg3eBKw5YFiWY8EIBu70Ys
-I0VY97z1mRO4S1TXwUwzr3NlB3JPmnJUKGRlh6ZceKnqGQWieS87rOn1aEUWNcxa
-LwIDAQAB
------END PUBLIC KEY-----]],
+    public_key = config.data.openidc_pubkey,
 }
 -- call bearer_jwt_verify for OAuth 2.0 JWT validation
-local res, err = require("resty.openidc").bearer_jwt_verify(opts)
+local res, err = openidc.bearer_jwt_verify(opts)
 
 if err or not res then
-    ngx.status = ngx.HTTP_FORBIDDEN
+    ngx.status = ngx.HTTP_UNAUTHORIZED
     ngx.say(err and err or "no access_token provided")
     return ngx.exit(ngx.OK)
 end
@@ -140,7 +141,7 @@ if ngx.var.request_method == "COPY" then
     end
 
     if ngx.var.http_destination then
-        ngx.status = ngx.HTTP_NOT_IMPLEMENTED
+        ngx.status = ngx.HTTP_NOT_ALLOWED
         ngx.say("third-party push copy not implemented")
         return ngx.exit(ngx.OK)
     end
