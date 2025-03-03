@@ -135,7 +135,7 @@ def setup_server(oidc_mock_idp: MockIdP):
     os.remove("nginx/lua/config.json")
 
 
-@pytest.fixture(scope="function")
+@pytest.fixture(scope="module")
 def nginx_server(setup_server) -> Iterator[str]:
     """A running nginx-webdav server for testing
 
@@ -188,5 +188,6 @@ def nginx_server(setup_server) -> Iterator[str]:
     subprocess.check_call(["podman", "logs", container_id])
 
     # Stop podman container and clean up
-    subprocess.check_call(["podman", "stop", container_id], stdout=subprocess.DEVNULL)
+    # -t 1: 1 second grace period, because bash doesn't signal dnsmasq to stop
+    subprocess.check_call(["podman", "stop", "-t", "1", container_id], stdout=subprocess.DEVNULL)
     subprocess.check_call(["podman", "rm", container_id], stdout=subprocess.DEVNULL)
