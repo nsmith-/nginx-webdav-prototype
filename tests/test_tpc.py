@@ -1,9 +1,12 @@
-from typing import Iterable
-from http.server import HTTPServer, BaseHTTPRequestHandler
+import logging
+from http.server import BaseHTTPRequestHandler, HTTPServer
 from threading import Thread
+from typing import Iterable
+
 import httpx
 import pytest
-import logging
+
+from .util import assert_status
 
 logger = logging.getLogger("RequestHandler")
 
@@ -43,12 +46,6 @@ def peer_server() -> Iterable[str]:
 
     httpd.shutdown()
     thread.join()
-
-
-def assert_status(response, status_code):
-    assert response.status_code == status_code, (
-        f"{response.status_code} != {status_code}\nText: {response.text}"
-    )
 
 
 def test_tpc_pull_nonexistent(

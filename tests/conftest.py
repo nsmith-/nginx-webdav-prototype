@@ -187,6 +187,5 @@ def nginx_server(setup_server) -> Iterator[str]:
     subprocess.check_call(["podman", "logs", container_id])
 
     # Stop podman container and clean up
-    # -t 1: 1 second grace period, because bash doesn't signal dnsmasq to stop
-    subprocess.check_call(["podman", "stop", "-t", "1", container_id], stdout=subprocess.DEVNULL)
+    subprocess.check_call(["podman", "stop", container_id], stdout=subprocess.DEVNULL)
     subprocess.check_call(["podman", "rm", container_id], stdout=subprocess.DEVNULL)
