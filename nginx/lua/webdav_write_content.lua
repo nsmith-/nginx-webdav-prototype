@@ -2,10 +2,6 @@ local ngx = require("ngx")
 local config = require("config")
 local sys_stat = require("posix.sys.stat")
 
--- Because this happens in the access block, we have to specifically test access here
-local check_access = require("webdav_access")
-check_access()
-
 local file_path = config.data.local_path .. ngx.var.request_uri:sub(#config.data.uriprefix + 1)
 local stat = sys_stat.stat(file_path)
 local is_directory = (stat and sys_stat.S_ISDIR(stat.st_mode) ~= 0) or (file_path:sub(#file_path) == "/")
