@@ -35,25 +35,24 @@ if is_directory then
     return ngx.exit(ngx.OK)
 end
 
-local file, err = io.open(file_path, "w")
-if file == nil then
-    ngx.status = ngx.HTTP_INTERNAL_SERVER_ERROR
-    ngx.say("failed to open file: " .. err)
-    return ngx.exit(ngx.OK)
-end
-
-local reader = nil
-reader, err = ngx.req.socket()
+local reader, err = ngx.req.socket()
 if not reader then
     ngx.status = ngx.HTTP_INTERNAL_SERVER_ERROR
     ngx.say("failed to get the request socket: " .. err)
     return ngx.exit(ngx.OK)
 end
 
+local file = nil
+file, err = io.open(file_path, "w")
+if file == nil then
+    ngx.status = ngx.HTTP_INTERNAL_SERVER_ERROR
+    ngx.say("failed to open file: " .. err)
+    return ngx.exit(ngx.OK)
+end
+
 local buffer = nil
-local buffer_size = 1024*1024
 repeat
-    buffer, err = reader:receiveany(buffer_size)
+    buffer, err = reader:receiveany(config.data.receive_buffer_size)
     local closed = err ~= nil and err:sub(1, 6) == "closed"
     if err and not closed then
         ngx.status = ngx.HTTP_INTERNAL_SERVER_ERROR

@@ -59,10 +59,9 @@ local function third_party_pull(source_uri, destination_localpath)
 
     -- We can use the `body_reader` iterator, to stream the body according to our desired buffer size.
     local reader = res.body_reader
-    local buffer_size = 16*1024
 
     repeat
-        local buffer, err = reader(buffer_size)
+        local buffer, err = reader(config.data.receive_buffer_size)
         local closed = err:sub(1, 6) == "closed"
         if err and not closed then
             ngx.log(ngx.ERR, err)
