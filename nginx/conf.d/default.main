@@ -1,0 +1,2 @@
+user root;
+worker_processes auto;

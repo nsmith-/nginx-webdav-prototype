@@ -1,7 +1,15 @@
-local ngx = require "ngx"
+local ngx = require("ngx")
 
 local Config = {
     data = {
+        -- Make sure thee are consitent with default.conf
+        local_path = "/var/www/webdav",
+        uriprefix = "/webdav",
+
+        -- This is used in webdav_write_content and webdav_tpc_content
+        receive_buffer_size = 1024*1024,
+        performance_marker_threshold = 10*1024*1024,
+
         -- discovery = "https://cms-auth.web.cern.ch/.well-known/openid-configuration",
         -- this is the public key from the above provider
         -- it can be overridden by the config json if desired
