@@ -53,7 +53,7 @@ function fileutil.sink_to_file(file_path, reader, perfcounter)
     end)
     while not (fd or err) do
         uv.run("once")
-        ngx.sleep(0.001)
+        ngx.sleep(0)
     end
     if not fd then
         return "failed to open file: " .. err
@@ -75,7 +75,7 @@ function fileutil.sink_to_file(file_path, reader, perfcounter)
             end)
             while not (nbytes or err) do
                 uv.run("once")
-                ngx.sleep(0.001)
+                ngx.sleep(0)
             end
             if not nbytes then
                 return "failed to write to the file: " .. err
@@ -103,7 +103,7 @@ function fileutil.sink_to_file(file_path, reader, perfcounter)
     end)
     while not (success or err) do
         uv.run("once")
-        ngx.sleep(0.001)
+        ngx.sleep(0)
     end
     if not success then
         return "failed to close the file: " .. err
