@@ -1,5 +1,6 @@
 local sys_stat = require("posix.sys.stat")
 local config = require("config")
+local uv = require("luv")
 
 local fileutil = {}
 
@@ -44,8 +45,17 @@ end
 ---Returns nil if successful, otherwise an error message.
 ---Set perfcounter to report every so often the number of bytes written.
 function fileutil.sink_to_file(file_path, reader, perfcounter)
-    local file, err = io.open(file_path, "w+b")
-    if not file then
+    local fd = nil
+    local err = nil
+    uv.fs_open(file_path, "w", tonumber('644', 8), function(_err, _fd)
+        err = _err
+        fd = _fd
+    end)
+    while not (fd or err) do
+        uv.run("once")
+        ngx.sleep(0.001)
+    end
+    if not fd then
         return "failed to open file: " .. err
     end
 
@@ -58,7 +68,21 @@ function fileutil.sink_to_file(file_path, reader, perfcounter)
             return "failed to read from the request socket: " .. err
         end
         if buffer then
-            file, err = file:write(buffer)
+            local nbytes = nil
+            uv.fs_write(fd, buffer, function(_err, _nbytes)
+                err = _err
+                nbytes = _nbytes
+            end)
+            while not (nbytes or err) do
+                uv.run("once")
+                ngx.sleep(0.001)
+            end
+            if not nbytes then
+                return "failed to write to the file: " .. err
+            end
+            if nbytes ~= #buffer then
+                return "failed to write all bytes to the file"
+            end
             bytes_written = bytes_written + #buffer
             if perfcounter and last_reported + config.data.performance_marker_threshold <= bytes_written then
                 ngx.say(string.format("%d bytes written", bytes_written))
@@ -69,13 +93,21 @@ function fileutil.sink_to_file(file_path, reader, perfcounter)
             -- https://stackoverflow.com/questions/53805913/how-to-define-c-functions-with-luajit
             -- e.g. a C function for https://en.wikipedia.org/wiki/Adler-32
             -- libz has this function
-            if not file then
-                return "failed to write to the file: " .. err
-            end
         end
     until not buffer
 
-    file:close()
+    local success = nil
+    uv.fs_close(fd, function(_err, _success)
+        err = _err
+        success = _success
+    end)
+    while not (success or err) do
+        uv.run("once")
+        ngx.sleep(0.001)
+    end
+    if not success then
+        return "failed to close the file: " .. err
+    end
 
     ngx.log(ngx.NOTICE, bytes_written, " total bytes written to ", file_path)
 end
