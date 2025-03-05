@@ -1,5 +1,6 @@
 local http = require("resty.http")
 local config = require("config")
+local fileutil = require("fileutil")
 
 ---@type function
 ---@param source_uri string
@@ -48,42 +49,12 @@ local function third_party_pull(source_uri, destination_localpath)
         return ngx.exit(res.status)
     end
 
-    -- At this point, the status and headers will be available to use in the `res`
-    -- table, but the body and any trailers will still be on the wire.
-    local file, err = io.open(destination_localpath, "w+b")
-    if file == nil then
+    err = fileutil.sink_to_file(destination_localpath, res.body_reader)
+    if err then
         ngx.status = ngx.HTTP_INTERNAL_SERVER_ERROR
-        ngx.say("failed to open destination file: ", err)
+        ngx.say("failed to write to file: ", err)
         return ngx.exit(ngx.OK)
     end
-
-    -- We can use the `body_reader` iterator, to stream the body according to our desired buffer size.
-    local reader = res.body_reader
-
-    repeat
-        local buffer, err = reader(config.data.receive_buffer_size)
-        local closed = err:sub(1, 6) == "closed"
-        if err and not closed then
-            ngx.log(ngx.ERR, err)
-            break
-        end
-
-        if buffer then
-            -- TODO: build checksum
-            -- can use LuaJIT FFI to call C function
-            -- https://stackoverflow.com/questions/53805913/how-to-define-c-functions-with-luajit
-            -- e.g. a C function for https://en.wikipedia.org/wiki/Adler-32
-            -- libz has this function
-            -- TODO: coroutine https://www.lua.org/manual/5.1/manual.html#2.11
-            file:write(buffer)
-        end
-
-        if closed then
-            break
-        end
-    until not buffer
-
-    file:close()
 
     -- this allows the connection to be reused by other requests
     ok, err = httpc:set_keepalive()
@@ -99,8 +70,6 @@ end
 if ngx.var.request_method == "COPY" then
     -- The COPY method is supported by ngx_http_dav_module but only for files on the same server.
     -- We intercept the method here to support third-party push copy.
-    -- TODO: is this the best spot in the request lifecycle to do this?
-    -- https://openresty-reference.readthedocs.io/en/latest/Directives/
     if not ngx.var.http_source then
         ngx.status = ngx.HTTP_BAD_REQUEST
         ngx.say("no source provided")
@@ -113,8 +82,7 @@ if ngx.var.request_method == "COPY" then
         return ngx.exit(ngx.OK)
     end
 
-    local file_path = config.data.local_path .. ngx.var.request_uri:sub(#config.data.uriprefix + 1)
-    third_party_pull(ngx.var.http_source, file_path)
+    third_party_pull(ngx.var.http_source, fileutil.get_request_local_path())
 
     return ngx.exit(ngx.HTTP_OK)
 end

@@ -25,8 +25,12 @@ class RequestHandler(BaseHTTPRequestHandler):
                 self.end_headers()
                 return
             self.send_response(httpx.codes.OK)
+            data = b"Hello, world!"
+            nbytes = len(data)
+            self.send_header("Content-type", "application/octet-stream")
+            self.send_header("Content-length", str(nbytes))
             self.end_headers()
-            self.wfile.write(b"Hello, world!")
+            self.wfile.write(data)
             logger.info("GET /hello.txt 200")
             return
 

@@ -47,6 +47,7 @@ def test_crud_file(
     response = httpx.delete(path, headers=wlcg_modify_header)
     assert_status(response, httpx.codes.NOT_FOUND)
 
+
 def test_crud_dir(
     nginx_server: str,
     wlcg_create_header: dict[str, str],
@@ -60,3 +61,20 @@ def test_crud_dir(
     response = httpx.put(path, headers=wlcg_create_header)
     # TODO: allow create directory with PUT or only with MKCOL?
     assert_status(response, httpx.codes.FORBIDDEN)
+
+
+def test_put_chunks(
+    nginx_server: str,
+    wlcg_create_header: dict[str, str],
+):
+    path = f"{nginx_server}/test_chunks.txt"
+    unit = b"Hello, world!" * 100
+    n = 10
+    data_gen = (unit for _ in range(n))
+
+    response = httpx.put(path, headers=wlcg_create_header, content=data_gen)
+    assert_status(response, httpx.codes.CREATED)
+
+    response = httpx.get(path, headers=wlcg_create_header)
+    assert_status(response, httpx.codes.OK)
+    assert response.read() == unit * n
