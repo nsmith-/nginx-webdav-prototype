@@ -12,31 +12,49 @@ logger = logging.getLogger("RequestHandler")
 
 
 class RequestHandler(BaseHTTPRequestHandler):
+    def _auth(self):
+        if "Authorization" not in self.headers:
+            logger.info("No Authorization header")
+            self.send_response(httpx.codes.UNAUTHORIZED)
+            self.end_headers()
+            return False
+        if self.headers["Authorization"] != "Bearer opensesame":
+            logger.info("Invalid Authorization header")
+            self.send_response(httpx.codes.FORBIDDEN)
+            self.end_headers()
+            return False
+        return True
+
     def do_GET(self):
+        if not self._auth():
+            return
+
         if self.path == "/hello.txt":
-            if "Authorization" not in self.headers:
-                logger.info("No Authorization header")
-                self.send_response(httpx.codes.UNAUTHORIZED)
-                self.end_headers()
-                return
-            if self.headers["Authorization"] != "Bearer opensesame":
-                logger.info("Invalid Authorization header")
-                self.send_response(httpx.codes.FORBIDDEN)
-                self.end_headers()
-                return
-            self.send_response(httpx.codes.OK)
+            code = httpx.codes.OK
             data = b"Hello, world!"
             nbytes = len(data)
+            self.send_response(code)
             self.send_header("Content-type", "application/octet-stream")
             self.send_header("Content-length", str(nbytes))
             self.end_headers()
             self.wfile.write(data)
-            logger.info("GET /hello.txt 200")
-            return
+        elif self.path == "/bigdata.bin":
+            code = httpx.codes.OK
+            nchunks = 10
+            chunk = b"Hello, world!" * 1000
+            nbytes = len(chunk) * nchunks
+            self.send_response(httpx.codes.OK)
+            self.send_header("Content-type", "application/octet-stream")
+            self.send_header("Content-length", str(nbytes))
+            self.end_headers()
+            for _ in range(nchunks):
+                self.wfile.write(chunk)
+        else:
+            code = httpx.codes.NOT_FOUND
+            self.send_response(code)
+            self.end_headers()
 
-        self.send_response(httpx.codes.NOT_FOUND)
-        self.end_headers()
-        logger.info(f"GET {self.path} 404")
+        logger.info(f"GET {self.path} {code}")
 
 
 @pytest.fixture(scope="module")
@@ -99,3 +117,28 @@ def test_tpc_pull(
     response = httpx.get(dst, headers=wlcg_create_header)
     assert_status(response, httpx.codes.OK)
     assert response.text == "Hello, world!"
+
+
+def test_tpc_pull_bigdata(
+    nginx_server: str,
+    wlcg_create_header: dict[str, str],
+    peer_server: str,
+    caplog,
+):
+    caplog.set_level(logging.INFO)
+
+    src = f"{peer_server}/bigdata.bin"
+    dst = f"{nginx_server}/bigdata_tpc_pull.bin"
+
+    headers = dict(wlcg_create_header)
+    headers["Source"] = src
+    headers["TransferHeaderAuthorization"] = "Bearer opensesame"
+    response = httpx.request("COPY", dst, headers=headers)
+    assert_status(response, httpx.codes.OK)
+    lines = [line.endswith(" bytes written") for line in response.text.splitlines()]
+    assert all(lines)
+    assert len(lines) == (10_000 * 13) // 8192
+
+    response = httpx.get(dst, headers=wlcg_create_header)
+    assert_status(response, httpx.codes.OK)
+    assert response.content == b"Hello, world!" * 10_000

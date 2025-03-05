@@ -51,7 +51,7 @@ end
 
 ---@type function
 ---@param status integer
----@param message string
+---@param message string?
 local function exit(status, message)
     local status_strings = {
         [200] = "OK",
@@ -60,11 +60,22 @@ local function exit(status, message)
         [400] = "Bad Request",
         [500] = "Internal Server Error",
     }
-    local body = message
-    sock:send(string.format(
-        'HTTP/1.1 %d %s\r\nConnection: close\r\nContent-Length: %d\r\n\r\n%s',
-        status, status_strings[status], #body, body
-    ))
+    local response = {
+        string.format("HTTP/1.1 %d %s\r\n", status, status_strings[status]),
+        "Connection: close\r\n",
+    }
+    if status == 204 then
+        -- No Content should not have a body
+        message = nil
+    end
+    if message then
+        table.insert(response, string.format("Content-Length: %d\r\n", #message))
+        table.insert(response, "\r\n")
+        table.insert(response, message)
+    else
+        table.insert(response, "\r\n")
+    end
+    sock:send(response)
 end
 
 local reader = http.get_client_body_reader(nil, nil, sock)
@@ -78,7 +89,7 @@ if err then
 end
 
 if metadata.exists then
-    return exit(ngx.HTTP_NO_CONTENT, "file updated")
+    return exit(ngx.HTTP_NO_CONTENT)
 end
 
 return exit(ngx.HTTP_CREATED, "file created")

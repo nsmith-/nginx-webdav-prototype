@@ -119,6 +119,8 @@ def setup_server(oidc_mock_idp: MockIdP):
     # see nginx/lua/config.lua for schema
     config = {
         "openidc_pubkey": oidc_mock_idp.public_key_pem,
+        "receive_buffer_size": 4096,
+        "performance_marker_threshold": 2 * 4096,
     }
     with open("nginx/lua/config.json", "w") as f:
         json.dump(config, f)

@@ -49,7 +49,7 @@ local function third_party_pull(source_uri, destination_localpath)
         return ngx.exit(res.status)
     end
 
-    err = fileutil.sink_to_file(destination_localpath, res.body_reader)
+    err = fileutil.sink_to_file(destination_localpath, res.body_reader, true)
     if err then
         ngx.status = ngx.HTTP_INTERNAL_SERVER_ERROR
         ngx.say("failed to write to file: ", err)

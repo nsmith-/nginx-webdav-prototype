@@ -16,6 +16,7 @@ def test_crud_file(
 
     response = httpx.put(path, headers=wlcg_create_header, content=data)
     assert_status(response, httpx.codes.CREATED)
+    assert response.text == "file created"
 
     response = httpx.get(path, headers=wlcg_create_header)
     assert_status(response, httpx.codes.OK)
