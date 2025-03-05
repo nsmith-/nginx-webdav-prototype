@@ -1,3 +1,5 @@
 pyjwt[crypto]
 pytest
 httpx
+pytest-asyncio
+numpy
