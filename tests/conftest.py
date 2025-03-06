@@ -155,7 +155,7 @@ def nginx_server(setup_server) -> Iterator[str]:
         "-v",
         "./nginx/lua:/etc/nginx/lua",
         "--tmpfs",
-        "/var/www/webdav:rw,size=10M,mode=1777",
+        "/var/www/webdav:rw,size=100M,mode=1777",
     ]
     podman_cmd.append("nginx-webdav")
     container_id = subprocess.check_output(podman_cmd).decode().strip()
