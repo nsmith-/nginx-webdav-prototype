@@ -66,6 +66,7 @@ function fileutil.sink_to_file(file_path, reader, perfcounter)
     local buffer = nil
     local bytes_written = 0
     local last_reported = 0
+    local adler_state = cksumutil.adler32_initialize()
     repeat
         buffer, err = reader(config.data.receive_buffer_size)
         if err then
@@ -83,12 +84,14 @@ function fileutil.sink_to_file(file_path, reader, perfcounter)
             -- https://stackoverflow.com/questions/53805913/how-to-define-c-functions-with-luajit
             -- e.g. a C function for https://en.wikipedia.org/wiki/Adler-32
             -- libz has this function
+            cksumutil.adler32_increment(adler_state, buffer)
             if not file then
                 return "failed to write to the file: " .. err
             end
         end
     until not buffer
-
+    ngx.say("Checksum is " .. cksumutil.adler32_to_string(adler_state))
+    cksumutil.set_adler32(file_path, cksumutil.adler32_to_string(adler_state))
     file:close()
 
     ngx.log(ngx.NOTICE, bytes_written, " total bytes written to ", file_path)
