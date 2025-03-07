@@ -109,10 +109,11 @@ function cksumutil.compute_adler32(path)
 
     -- Used to notify when ALL needs are done
     local more_bytes = true
+    local read_sem, err = semaphore.new()
     while more_bytes do
       -- Used to notify when the current read is done 
-      local read_sem, err = semaphore.new()
-      assert(read_sem, err)
+      ngx.log(ngx.ERR, "sem  err ", err)
+      -- assert(read_sem, err)
       local read_complete = false
       uv.fs_read(fd, CHECKSUM_BLOCK_SIZE, nil, function(err, data)
         assert(not err, err)
