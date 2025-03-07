@@ -127,7 +127,8 @@ function cksumutil.compute_adler32(path)
         read_sem:post(1)
       end)
       -- This blocks until the previous read_sem.post(1) is executed
-      read_sem:wait()
+      local ONE_YEAR_SECS = 31536000
+      read_sem:wait(ONE_YEAR_SECS)
     end
     uv.fs_close(fd, function(err)
       if err then
