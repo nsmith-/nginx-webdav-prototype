@@ -69,7 +69,7 @@ function cksumutil.adler32_increment(state, buf)
   for i=1,#buf do
     local c = string.byte(buf, i)
     state.a = (state.a + c) % mod_adler
-    state.b = (state.b + state.b) % mod_adler
+    state.b = (state.b + state.a) % mod_adler
   end
   return state
 end
