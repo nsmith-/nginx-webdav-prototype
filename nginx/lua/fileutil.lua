@@ -1,5 +1,6 @@
 local sys_stat = require("posix.sys.stat")
 local config = require("config")
+local cksumutil = require("cksumutil")
 
 local fileutil = {}
 
@@ -13,8 +14,9 @@ end
 
 ---@type function
 ---@param file_path string
----@return {exists:boolean, is_directory:boolean}
-function fileutil.get_metadata(file_path)
+---@param want_adler32 boolean
+---@return {exists:boolean, is_directory:boolean, size:integer, adler32:string}
+function fileutil.get_metadata(file_path, want_adler32)
     local stat = sys_stat.stat(file_path)
 
     if not stat then
@@ -22,15 +24,27 @@ function fileutil.get_metadata(file_path)
             exists = false,
             -- If the file path ends with a slash, it will be a directory
             is_directory = file_path:sub(#file_path) == "/",
+            size = 0,
+            adler32 = "",
         }
     end
 
     -- TODO: owner, group, permissions
-    -- TODO: xattr
+
+    local err = nil
+    local adler32 = nil
+    if want_adler32 then
+        err, adler32 = cksumutil.get_adler32(file_path)
+        if not adler32 then
+            ngx.log(ngx.ERR, "Failed to get adler32 for " .. file_path .. " err: " .. err)
+        end
+    end
 
     return {
         exists = true,
         is_directory = sys_stat.S_ISDIR(stat.st_mode) ~= 0,
+        size = stat.st_size,
+        adler32 = adler32 or "",
     }
 end
 
