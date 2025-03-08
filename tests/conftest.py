@@ -116,7 +116,7 @@ def setup_server(oidc_mock_idp: MockIdP):
     # Make sure we are in the right place: one up from tests/
     assert os.getcwd() == os.path.dirname(os.path.dirname(__file__))
 
-    # see nginx/lua/config.lua for schema
+    # see nginx/lua/config.json for schema
     config = {
         "openidc_pubkey": oidc_mock_idp.public_key_pem,
         "receive_buffer_size": 4096,
