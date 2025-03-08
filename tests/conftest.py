@@ -188,7 +188,7 @@ def nginx_server(setup_server) -> Iterator[str]:
     for _ in range(10):
         try:
             time.sleep(0.1)
-            httpx.get("http://localhost:8080/")
+            httpx.get("http://localhost:8080/webdav_health/")
             break
         except httpx.HTTPError:
             pass
