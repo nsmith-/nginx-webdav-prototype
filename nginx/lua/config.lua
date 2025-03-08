@@ -22,6 +22,10 @@ nYRpXnJvRswePD3s0nSYwAWr7TyRm5r/UCr5MoZpWSUg3eBKw5YFiWY8EIBu70Ys
 I0VY97z1mRO4S1TXwUwzr3NlB3JPmnJUKGRlh6ZceKnqGQWieS87rOn1aEUWNcxa
 LwIDAQAB
 -----END PUBLIC KEY-----]],
+       -- To be able to confirm that the test server is the same one we spoke
+       -- to, have the health check reply this ID. So the test sets the ID and
+       -- the service replies with the same number
+       health_check_id = -1,
     }
 }
 
