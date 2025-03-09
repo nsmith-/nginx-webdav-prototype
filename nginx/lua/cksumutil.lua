@@ -1,6 +1,5 @@
 local ffi = require("ffi")
-local uv = require("luv")
-local semaphore = require "ngx.semaphore"
+local config    = require "config"
 
 -- some lua-isms added from https://github.com/user-none/lua-hashings/
 
@@ -20,7 +19,7 @@ function cksumutil.get_adler32(path)
   if err or val == nil then
     -- We checked and didn't see an adler32, so make one
     local get_err, get_val = cksumutil.compute_adler32(path)
-    if get_err then
+    if not get_val then
       return get_err, nil
     end
     local set_err = cksumutil.set_adler32(path, get_val)
@@ -95,58 +94,27 @@ end
 
 ---@type function
 ---@param path string
----@return string? err, string val
+---@return string? err, string? val
 ---Given a path, compute adler32 of the file
 function cksumutil.compute_adler32(path)
-  -- Read 64MB blocks
-  -- TODO: Make configurable
-  local CHECKSUM_BLOCK_SIZE = 64 * 1024 * 1024
-  local cb_complete = false
   local adler_state = cksumutil.adler32_initialize()
-  local req = uv.fs_open(path, 'r', tonumber('644', 8), function(err, fd)
-    -- FIXME better error handling
-    assert(fd, err)
 
-    -- Used to notify when ALL needs are done
-    local more_bytes = true
-    local read_sem, err = semaphore.new()
-    while more_bytes do
-      -- Used to notify when the current read is done 
-      ngx.log(ngx.ERR, "sem  err ", err)
-      -- assert(read_sem, err)
-      local read_complete = false
-      uv.fs_read(fd, CHECKSUM_BLOCK_SIZE, nil, function(err, data)
-        assert(not err, err)
-        if (data ~= nil) and (#data ~= CHECKSUM_BLOCK_SIZE) then
-          -- Short read means there was not CHECKSUM_BLOCK_SIZE 
-          more_bytes = false
-        end
-        if data then
-          -- uv.fs_read returns nil for data if EOF
-          adler_state = cksumutil.adler32_increment(adler_state, data)
-        end
-        read_sem:post(1)
-      end)
-      -- This blocks until the previous read_sem.post(1) is executed
-      local ONE_YEAR_SECS = 31536000
-      read_sem:wait(ONE_YEAR_SECS)
+  local fd, err = io.open(path, "r")
+  if not fd then
+    return "Failed to open " .. path .. ": " .. err, nil
+  end
+
+  repeat
+    local data = fd:read(config.data.checksum_block_size)
+
+    if data then
+      adler_state = cksumutil.adler32_increment(adler_state, data)
     end
-    uv.fs_close(fd, function(err)
-      if err then
-        ngx.log(ngx.ERR, "Couldn't close " .. path " err: " .. err)
-      end
-      cb_complete = true
-    end)
-  end)
-  while not cb_complete do
-    -- I can't tell if we want "once" or "nowait", since it says once
-    --
-    -- "Note that this function blocks if there are no pending callbacks"
-    --
-    -- Does this mean it will do the I/O loop once, then block until someone
-    -- triggers a callback?
-    uv.run("once")
-    ngx.sleep(0.000001)
+  until not data
+
+  local suc, exitcode = fd:close()
+  if not suc then
+    return "Failed to close " .. path .. ": " .. exitcode, nil
   end
 
   return nil, cksumutil.adler32_to_string(adler_state)
