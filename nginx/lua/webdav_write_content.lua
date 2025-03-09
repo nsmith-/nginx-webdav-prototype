@@ -4,7 +4,7 @@ local http = require("resty.http")
 local fileutil = require("fileutil")
 
 local file_path = fileutil.get_request_local_path()
-local metadata = fileutil.get_metadata(file_path)
+local metadata = fileutil.get_metadata(file_path, false)
 
 if ngx.var.request_method == "DELETE" then
     if not metadata.exists then

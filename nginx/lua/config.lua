@@ -10,6 +10,9 @@ local Config = {
         receive_buffer_size = 1024*1024,
         performance_marker_threshold = 10*1024*1024,
 
+        -- This is used in cksumutil
+        checksum_block_size = 64*1024*1024,
+
         -- discovery = "https://cms-auth.web.cern.ch/.well-known/openid-configuration",
         -- this is the public key from the above provider
         -- it can be overridden by the config json if desired

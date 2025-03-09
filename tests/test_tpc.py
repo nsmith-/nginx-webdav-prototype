@@ -135,9 +135,10 @@ def test_tpc_pull_bigdata(
     headers["TransferHeaderAuthorization"] = "Bearer opensesame"
     response = httpx.request("COPY", dst, headers=headers)
     assert_status(response, httpx.codes.OK)
-    lines = [line.endswith(" bytes written") for line in response.text.splitlines()]
-    assert all(lines)
-    assert len(lines) == (10_000 * 13) // 8192
+    lines = response.text.splitlines()
+    assert all(line.endswith(" bytes written") for line in lines[:-1])
+    assert len(lines) == (10_000 * 13) // 8192 + 1
+    assert lines[-1].startswith("Checksum is ")
 
     response = httpx.get(dst, headers=wlcg_create_header)
     assert_status(response, httpx.codes.OK)
