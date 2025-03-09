@@ -1,8 +1,13 @@
+import datetime
 import json
 import os
-import subprocess
+import random
 import time
+import socket
+import subprocess
 import uuid
+import logging
+
 from dataclasses import dataclass
 from typing import Iterator
 
@@ -13,6 +18,7 @@ from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
 
+logger = logging.getLogger()
 
 @dataclass
 class MockIdP:
@@ -121,6 +127,10 @@ def setup_server(oidc_mock_idp: MockIdP):
         "openidc_pubkey": oidc_mock_idp.public_key_pem,
         "receive_buffer_size": 4096,
         "performance_marker_threshold": 2 * 4096,
+        # Give the container a (hopefully) unique ID that is returned in a
+        # health check so that we can verify that the service we started is the
+        # same one we're connecting to
+        "health_check_id": random.randint(0, 1024*1024*1024)
     }
     with open("nginx/lua/config.json", "w") as f:
         json.dump(config, f)
@@ -178,7 +188,7 @@ def nginx_server(setup_server) -> Iterator[str]:
     for _ in range(10):
         try:
             time.sleep(0.1)
-            httpx.get("http://localhost:8080/")
+            httpx.get("http://localhost:8080/webdav_health/")
             break
         except httpx.HTTPError:
             pass
