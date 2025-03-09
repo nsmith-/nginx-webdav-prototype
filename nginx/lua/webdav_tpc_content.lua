@@ -49,9 +49,12 @@ local function third_party_pull(source_uri, destination_localpath)
         return ngx.exit(res.status)
     end
 
+    -- At this point we have accepted the request
+    ngx.status = ngx.HTTP_ACCEPTED
+    ngx.header["Content-Type"] = "text/perf-marker-stream"
     err = fileutil.sink_to_file(destination_localpath, res.body_reader, true)
+
     if err then
-        ngx.status = ngx.HTTP_INTERNAL_SERVER_ERROR
         ngx.say("failed to write to file: ", err)
         return ngx.exit(ngx.OK)
     end
@@ -59,9 +62,7 @@ local function third_party_pull(source_uri, destination_localpath)
     -- this allows the connection to be reused by other requests
     ok, err = httpc:set_keepalive()
     if not ok then
-        -- TODO: is this a fatal error?
-        ngx.status = ngx.HTTP_INTERNAL_SERVER_ERROR
-        ngx.say("failed to set keepalive: ", err)
+        ngx.log(ngx.ERR, "failed to set keepalive on remote connection: ", err)
         return ngx.exit(ngx.OK)
     end
 end
@@ -82,7 +83,14 @@ if ngx.var.request_method == "COPY" then
         return ngx.exit(ngx.OK)
     end
 
-    third_party_pull(ngx.var.http_source, fileutil.get_request_local_path())
+    -- RequireChecksumVerification boolea
+    if ngx.var.http_requirechecksumverification then
+        local verify_checksum = true
+    end
 
-    return ngx.exit(ngx.HTTP_OK)
+    if ngx.var.http_scitag then
+        local scitag = tonumber(ngx.var.http_scitag)
+    end
+
+    third_party_pull(ngx.var.http_source, fileutil.get_request_local_path())
 end

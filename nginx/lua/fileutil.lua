@@ -51,13 +51,15 @@ end
 ---@type function
 ---@param file_path string
 ---@param reader fun(max_chunk_size:integer): string?, string
----@param perfcounter boolean?
----@return string?
+---@param perfmarkers boolean?
+---@return string? err, string? adler32
 ---
 ---Reads from the reader function and writes to the file_path.
----Returns nil if successful, otherwise an error message.
----Set perfcounter to report every so often the number of bytes written.
-function fileutil.sink_to_file(file_path, reader, perfcounter)
+---Returns nil if successful, otherwise an error message
+---Also returns the adler32 checksum of the written data
+---Set perfmarkers to send text/perf-marker-stream messages to the client.
+---  (if set, this function will call ngx.say to send messages and flush them)
+function fileutil.sink_to_file(file_path, reader, perfmarkers)
     local file, err = io.open(file_path, "w+b")
     if not file then
         return "failed to open file: " .. err
@@ -75,7 +77,7 @@ function fileutil.sink_to_file(file_path, reader, perfcounter)
         if buffer then
             file, err = file:write(buffer)
             bytes_written = bytes_written + #buffer
-            if perfcounter and last_reported + config.data.performance_marker_threshold <= bytes_written then
+            if perfmarkers and last_reported + config.data.performance_marker_threshold <= bytes_written then
                 ngx.say(string.format("%d bytes written", bytes_written))
                 last_reported = bytes_written
             end
@@ -90,11 +92,13 @@ function fileutil.sink_to_file(file_path, reader, perfcounter)
             end
         end
     until not buffer
-    ngx.say("Checksum is " .. cksumutil.adler32_to_string(adler_state))
-    cksumutil.set_adler32(file_path, cksumutil.adler32_to_string(adler_state))
+
+    local adler32 = cksumutil.adler32_to_string(adler_state)
+    cksumutil.set_adler32(file_path, adler32)
     file:close()
 
-    ngx.log(ngx.NOTICE, bytes_written, " total bytes written to ", file_path)
+    ngx.log(ngx.NOTICE, bytes_written, " total bytes written to ", file_path, " with adler32 ", adler32)
+    return nil, adler32
 end
 
 return fileutil
