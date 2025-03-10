@@ -3,8 +3,7 @@
 This project prototypes an Nginx server deployed in a Podman container with a protected directory that supports read-write access using WebDAV, authenticated with OpenIDConnect bearer tokens signed by the CMS IAM.
 
 Relevant docs:
-
-- Nginx WebDAV module http://nginx.org/en/docs/http/ngx_http_dav_module.html and [source](https://github.com/nginx/nginx/blob/master/src/http/modules/ngx_http_dav_module.c)
+- lua-nginx-module https://github.com/openresty/lua-nginx-module
 - lua-resty-openidc https://github.com/zmartzone/lua-resty-openidc
 
 ## Setup Instructions
@@ -14,17 +13,17 @@ Relevant docs:
 3. Build and run the Podman containers using the following command:
 
 ```sh
-podman build -t nginx-webdav \
-   ./nginx -f nginx.dockerfile
+podman build -t nginx-webdav-debug \
+   ./nginx -f nginx-debug.dockerfile
 
 mkdir data
-echo "Hello, world!" > data/hello.txt
+echo 'Hello, world!' > data/hello.txt
 
 podman run -d -p 8080:8080 \
    -v ./nginx/conf.d:/etc/nginx/conf.d:Z \
    -v ./nginx/lua:/etc/nginx/lua:Z \
    -v ./data:/var/www/webdav:Z \
-   nginx-webdav
+   nginx-webdav-debug
 ```
 
 You can reload the configuration with `podman exec <name> nginx -s reload`
