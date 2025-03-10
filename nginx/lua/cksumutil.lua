@@ -1,5 +1,5 @@
 local ffi = require("ffi")
-local config    = require "config"
+local config = require("config")
 
 -- some lua-isms added from https://github.com/user-none/lua-hashings/
 

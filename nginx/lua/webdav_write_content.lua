@@ -78,6 +78,7 @@ local function exit(status, message, digest)
         table.insert(response, string.format("Digest: %s\r\n", digest))
     end
     if message then
+        message = message .. "\n"
         table.insert(response, string.format("Content-Length: %d\r\n", #message))
         table.insert(response, "Content-Type: text/plain\r\n")
         table.insert(response, "\r\n")
@@ -96,6 +97,7 @@ end
 local adler32 = nil
 err, adler32 = fileutil.sink_to_file(file_path, reader)
 if err then
+    -- TODO: choose more appropriate status code based on error
     return exit(ngx.HTTP_INTERNAL_SERVER_ERROR, err)
 end
 

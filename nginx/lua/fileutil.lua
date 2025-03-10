@@ -75,6 +75,35 @@ local function write_perfmarker(bytes_written, start_time, last_transferred, now
     end
 end
 
+local EEXIST = 17
+local DIRMODE = tonumber('755', 8)
+
+---@type function
+---@param path string
+---@param recursive boolean?
+---@return boolean? success, string? err
+---Create a directory at the given path.
+---If recursive is true, create parent directories as needed.
+function fileutil.mkdir(path, recursive)
+    if recursive then
+        local parent = path:match("(.*)/")
+        local stat = sys_stat.stat(parent)
+        if not stat then
+            local suc, err = fileutil.mkdir(parent, true)
+            if not suc then
+                return nil, err
+            end
+        end
+    end
+    local suc, err, errno = sys_stat.mkdir(path, DIRMODE)
+    if suc == 0 then
+        return true
+    elseif errno == EEXIST then
+        return true
+    end
+    return nil, err
+end
+
 ---@type function
 ---@param file_path string
 ---@param reader fun(max_chunk_size:integer): string?, string
@@ -87,6 +116,10 @@ end
 ---Set perfmarkers to send text/perf-marker-stream messages to the client.
 ---  (if set, this function will call ngx.say to send messages and flush them)
 function fileutil.sink_to_file(file_path, reader, perfmarkers)
+    local directory = file_path:match("(.*)/")
+    if directory then
+        fileutil.mkdir(directory, true)
+    end
     local file, err = io.open(file_path, "w+b")
     if not file then
         return "failed to open file: " .. err
