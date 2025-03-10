@@ -72,7 +72,7 @@ def peer_server() -> Iterable[str]:
     thread = Thread(target=httpd.serve_forever)
     thread.start()
 
-    yield "http://host.containers.internal:8081"
+    yield "http://host.docker.internal:8081"
 
     httpd.shutdown()
     thread.join()
