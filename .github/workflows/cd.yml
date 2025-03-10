@@ -28,13 +28,16 @@ jobs:
         packages: write
         attestations: write
         id-token: write
+    env:
+      IMAGE_NAME: "nginx-webdav"
+    
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
       - name: Build image
-        run: docker build -f nginx.dockerfile --tag $IMAGE_NAME --label "runnumber=${GITHUB_RUN_ID}" ./nginx
+        run: docker build -f nginx/nginx.dockerfile --tag $IMAGE_NAME --label "runnumber=${GITHUB_RUN_ID}" ./nginx
 
       - name: Log in to registry
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
