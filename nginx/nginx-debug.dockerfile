@@ -1,4 +1,4 @@
-# This is intended for use when bind-mounting nginx/conf.g and nginx/lua
+# This is intended for use when bind-mounting nginx/conf.d and nginx/lua
 # to the container. It installs the necessary dependencies for the lua
 # modules to work.
 FROM openresty/openresty:centos
