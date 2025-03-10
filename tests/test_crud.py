@@ -95,4 +95,4 @@ def test_put_wantdigest(
     headers["Want-Digest"] = "adler32"
     response = httpx.put(path, headers=headers, content=data)
     assert_status(response, httpx.codes.CREATED)
-    assert response.headers["Digest"] == f"adler32={expected_adler32:x}"
+    assert response.headers["Digest"] == f"adler32={expected_adler32:08x}"

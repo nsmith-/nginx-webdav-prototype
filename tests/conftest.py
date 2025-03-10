@@ -126,11 +126,11 @@ def setup_server(oidc_mock_idp: MockIdP):
     config = {
         "openidc_pubkey": oidc_mock_idp.public_key_pem,
         "receive_buffer_size": 4096,
-        "performance_marker_threshold": 2 * 4096,
         # Give the container a (hopefully) unique ID that is returned in a
         # health check so that we can verify that the service we started is the
         # same one we're connecting to
-        "health_check_id": random.randint(0, 1024*1024*1024)
+        "health_check_id": random.randint(0, 1024*1024*1024),
+        "performance_marker_timeout": 2,
     }
     with open("nginx/lua/config.json", "w") as f:
         json.dump(config, f)

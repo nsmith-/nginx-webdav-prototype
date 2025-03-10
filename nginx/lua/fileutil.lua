@@ -49,6 +49,33 @@ function fileutil.get_metadata(file_path, want_adler32)
 end
 
 ---@type function
+---@param bytes_written integer
+---@param start_time number
+---@param last_transferred number
+---@param now number
+---@return nil
+---Write a perf-marker-stream message to the client
+local function write_perfmarker(bytes_written, start_time, last_transferred, now)
+    ngx.say("Perf Marker")
+    ngx.say("    Timestamp: ", math.floor(now))
+    ngx.say("    State: Running")
+    ngx.say("    State description: transfer has started")
+    ngx.say("    Stripe Index: 0")
+    ngx.say("    Stripe Start Time: ", math.floor(start_time))
+    ngx.say("    Stripe Last Transferred: ", math.floor(last_transferred))
+    ngx.say("    Stripe Transfer Time: ", math.floor(now - start_time))
+    ngx.say("    Stripe Bytes Transferred: ", bytes_written)
+    ngx.say("    Stripe Status: RUNNING")
+    ngx.say("    Total Stripe Count: 1")
+    ngx.say("End")
+    -- TODO: RemoteConnections information
+    local ok, err = ngx.flush(true)
+    if not ok then
+        ngx.log(ngx.ERR, "Failed to flush perf-marker-stream:", err)
+    end
+end
+
+---@type function
 ---@param file_path string
 ---@param reader fun(max_chunk_size:integer): string?, string
 ---@param perfmarkers boolean?
@@ -67,35 +94,38 @@ function fileutil.sink_to_file(file_path, reader, perfmarkers)
 
     local buffer = nil
     local bytes_written = 0
-    local last_reported = 0
+    local start_time = ngx.now()
+    local last_perfmarker = start_time
+    local last_transferred = start_time
     local adler_state = cksumutil.adler32_initialize()
     repeat
         buffer, err = reader(config.data.receive_buffer_size)
         if err then
             return "failed to read from the request socket: " .. err
         end
+        local now = ngx.now()
         if buffer then
             file, err = file:write(buffer)
             bytes_written = bytes_written + #buffer
-            if perfmarkers and last_reported + config.data.performance_marker_threshold <= bytes_written then
-                ngx.say(string.format("%d bytes written", bytes_written))
-                last_reported = bytes_written
-            end
-            -- TODO: build checksum
-            -- can use LuaJIT FFI to call C function
-            -- https://stackoverflow.com/questions/53805913/how-to-define-c-functions-with-luajit
-            -- e.g. a C function for https://en.wikipedia.org/wiki/Adler-32
-            -- libz has this function
+            last_transferred = now
             cksumutil.adler32_increment(adler_state, buffer)
             if not file then
                 return "failed to write to the file: " .. err
             end
         end
+        if perfmarkers and last_perfmarker + config.data.performance_marker_timeout <= now then
+            write_perfmarker(bytes_written, start_time, last_transferred, now)
+            last_perfmarker = now
+        end
     until not buffer
 
     local adler32 = cksumutil.adler32_to_string(adler_state)
     cksumutil.set_adler32(file_path, adler32)
-    file:close()
+
+    local suc, exitcode = file:close()
+    if not suc then
+      return "failed to close " .. file_path .. ": " .. exitcode
+    end
 
     ngx.log(ngx.NOTICE, bytes_written, " total bytes written to ", file_path, " with adler32 ", adler32)
     return nil, adler32
