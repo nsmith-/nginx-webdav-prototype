@@ -42,15 +42,22 @@ jobs:
       - name: Log in to registry
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
 
-      - name: Push image
-        if: github.event_name == 'release'
+      - name: Tag image
+        id: tag_image
         run: |
           IMAGE_ID=ghcr.io/${{ github.repository_owner }}/$IMAGE_NAME
           IMAGE_ID=$(echo $IMAGE_ID | tr '[A-Z]' '[a-z]')
           VERSION=$(echo "${{ github.ref }}" | sed -e 's,.*/\(.*\),\1,')
           [[ "${{ github.ref }}" == "refs/tags/"* ]] && VERSION=$(echo $VERSION | sed -e 's/^v//')
           [ "$VERSION" == "main" ] && VERSION=latest
-          echo IMAGE_ID=$IMAGE_ID
-          echo VERSION=$VERSION
+          echo IMAGE_ID=$IMAGE_ID >> $GITHUB_OUTPUT
+          echo VERSION=$VERSION >> $GITHUB_OUTPUT
           docker tag $IMAGE_NAME $IMAGE_ID:$VERSION
-          docker push $IMAGE_ID:$VERSION
+
+      - name: Push image
+        if: github.event_name == 'release'
+        run: docker push $IMAGE_ID:$VERSION
+        env:
+          IMAGE_ID: ${{ steps.tag_image.outputs.IMAGE_ID }}
+          VERSION: ${{ steps.tag_image.outputs.VERSION }}
+        
