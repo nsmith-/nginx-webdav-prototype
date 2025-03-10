@@ -1,3 +1,5 @@
+import zlib
+
 import httpx
 
 from .util import assert_status
@@ -79,3 +81,18 @@ def test_put_chunks(
     response = httpx.get(path, headers=wlcg_create_header)
     assert_status(response, httpx.codes.OK)
     assert response.read() == unit * n
+
+
+def test_put_wantdigest(
+    nginx_server: str,
+    wlcg_create_header: dict[str, str],
+):
+    path = f"{nginx_server}/test_digest.txt"
+    data = "Hello, world!" * 1000
+    expected_adler32 = zlib.adler32(data.encode())
+
+    headers = dict(wlcg_create_header)
+    headers["Want-Digest"] = "adler32"
+    response = httpx.put(path, headers=headers, content=data)
+    assert_status(response, httpx.codes.CREATED)
+    assert response.headers["Digest"] == f"adler32={expected_adler32:08x}"

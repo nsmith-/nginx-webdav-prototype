@@ -28,5 +28,5 @@ def test_head_adler32(nginx_server: str, wlcg_read_header: dict[str, str]):
     response = httpx.head(f"{nginx_server}/hello.txt", headers=headers)
     assert_status(response, httpx.codes.OK)
     assert response.headers["Content-Length"] == "13"
-    adler32 = hex(zlib.adler32(b"Hello, world!")).lstrip("0x")
-    assert response.headers["Digest"] == f"adler32={adler32}"
+    adler32 = zlib.adler32(b"Hello, world!")
+    assert response.headers["Digest"] == f"adler32={adler32:08x}"

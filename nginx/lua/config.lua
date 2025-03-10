@@ -8,7 +8,11 @@ local Config = {
 
         -- This is used in webdav_write_content and webdav_tpc_content
         receive_buffer_size = 1024*1024,
-        performance_marker_threshold = 10*1024*1024,
+        -- How often to send a performance marker (in seconds)
+        performance_marker_timeout = 5,
+
+        -- This is used in webdav_tpc_content
+        tpc_redirect_limit = 5,
 
         -- This is used in cksumutil
         checksum_block_size = 64*1024*1024,

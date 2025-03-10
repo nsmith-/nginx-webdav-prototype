@@ -1,7 +1,8 @@
 import logging
+import time
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from threading import Thread
-from typing import Iterable
+from typing import Iterable, Iterator
 
 import httpx
 import pytest
@@ -36,19 +37,26 @@ class RequestHandler(BaseHTTPRequestHandler):
             self.send_response(code)
             self.send_header("Content-type", "application/octet-stream")
             self.send_header("Content-length", str(nbytes))
+            self.send_header("Digest", "adler32=205e048a")
             self.end_headers()
             self.wfile.write(data)
-        elif self.path == "/bigdata.bin":
+        elif self.path.startswith("/bigdata.bin"):
             code = httpx.codes.OK
             nchunks = 10
             chunk = b"Hello, world!" * 1000
             nbytes = len(chunk) * nchunks
+            adler32 = 0x37F631F0
             self.send_response(httpx.codes.OK)
             self.send_header("Content-type", "application/octet-stream")
             self.send_header("Content-length", str(nbytes))
+            if "adler32" in self.path:
+                self.send_header("Digest", f"adler32={adler32:08x}")
             self.end_headers()
             for _ in range(nchunks):
                 self.wfile.write(chunk)
+                if "slow" in self.path:
+                    self.wfile.flush()
+                    time.sleep(1)
         else:
             code = httpx.codes.NOT_FOUND
             self.send_response(code)
@@ -64,7 +72,7 @@ def peer_server() -> Iterable[str]:
     thread = Thread(target=httpd.serve_forever)
     thread.start()
 
-    yield "http://host.containers.internal:8081"
+    yield "http://host.docker.internal:8081"
 
     httpd.shutdown()
     thread.join()
@@ -84,7 +92,10 @@ def test_tpc_pull_nonexistent(
     headers["Source"] = src
     headers["TransferHeaderAuthorization"] = "Bearer opensesame"
     response = httpx.request("COPY", dst, headers=headers)
-    assert_status(response, httpx.codes.GATEWAY_TIMEOUT)
+    assert_status(response, httpx.codes.ACCEPTED)
+    assert response.text.startswith(
+        "failure: connection to nonexistent.host:8081 failed:"
+    )
 
 
 def test_tpc_pull(
@@ -112,7 +123,9 @@ def test_tpc_pull(
 
     headers["TransferHeaderAuthorization"] = "Bearer opensesame"
     response = httpx.request("COPY", dst, headers=headers)
-    assert_status(response, httpx.codes.OK)
+    assert_status(response, httpx.codes.ACCEPTED)
+    lines = response.text.splitlines()
+    assert lines[-1] == "success: Created"
 
     response = httpx.get(dst, headers=wlcg_create_header)
     assert_status(response, httpx.codes.OK)
@@ -133,13 +146,79 @@ def test_tpc_pull_bigdata(
     headers = dict(wlcg_create_header)
     headers["Source"] = src
     headers["TransferHeaderAuthorization"] = "Bearer opensesame"
+
     response = httpx.request("COPY", dst, headers=headers)
-    assert_status(response, httpx.codes.OK)
+    assert response.status_code == httpx.codes.ACCEPTED
+    assert (
+        response.text.strip()
+        == "failure: adler32 checksum mismatch: source (missing) desination 37f631f0"
+    )
+
+    headers["RequireChecksumVerification"] = "false"
+    response = httpx.request("COPY", dst, headers=headers)
+    assert response.status_code == httpx.codes.ACCEPTED
     lines = response.text.splitlines()
-    assert all(line.endswith(" bytes written") for line in lines[:-1])
-    assert len(lines) == (10_000 * 13) // 8192 + 1
-    assert lines[-1].startswith("Checksum is ")
+    assert lines[-1] == "success: Created"
+
+    del headers["RequireChecksumVerification"]
+    headers["Source"] = f"{peer_server}/bigdata.bin.adler32"
+    response = httpx.request("COPY", dst, headers=headers)
+    assert response.status_code == httpx.codes.ACCEPTED
+    assert response.text.strip() == "success: Created"
 
     response = httpx.get(dst, headers=wlcg_create_header)
     assert_status(response, httpx.codes.OK)
     assert response.content == b"Hello, world!" * 10_000
+
+
+def test_tpc_pull_perfmarkers(
+    nginx_server: str,
+    wlcg_create_header: dict[str, str],
+    peer_server: str,
+    caplog,
+):
+    caplog.set_level(logging.INFO)
+
+    src = f"{peer_server}/bigdata.bin.adler32.slow"
+    dst = f"{nginx_server}/bigdata_tpc_pull.bin"
+
+    headers = dict(wlcg_create_header)
+    headers["Source"] = src
+    headers["TransferHeaderAuthorization"] = "Bearer opensesame"
+
+    def read_permarker(lines: Iterator[str]):
+        data: dict[str, str] = {}
+        while True:
+            line = next(lines)
+            if line == "End":
+                yield data
+                break
+            if ": " not in line:
+                raise RuntimeError(f"Invalid line: {line}")
+            key, value = line.split(": ", 1)
+            data[key.lstrip()] = value
+
+    def read_response(lines: Iterator[str]):
+        while True:
+            line = next(lines)
+            if line == "Perf Marker":
+                yield from read_permarker(lines)
+            elif line == "success: Created":
+                yield {"success": "Created"}
+                break
+            else:
+                raise RuntimeError(f"Unexpected line: {line}")
+
+    start = time.monotonic()
+    markers = []
+    with httpx.stream("COPY", dst, headers=headers, timeout=10) as response:
+        assert response.status_code == httpx.codes.ACCEPTED
+        for data in read_response(response.iter_lines()):
+            if "Stripe Transfer Time" in data:
+                assert (
+                    float(data["Stripe Transfer Time"]) - (time.monotonic() - start)
+                    < 0.1
+                )
+            markers.append(data)
+    assert len(markers) >= 2
+    assert "success" in markers[-1]

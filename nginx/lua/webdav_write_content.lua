@@ -49,10 +49,16 @@ end
 -- this is the price we pay for raw socket since the wrapped socket does not support
 -- chunked body encoding
 
+-- This allows clients to be sure the body will be accepted before committing to sending it
+if ngx.var.http_expect == "100-continue" then
+    sock:send("HTTP/1.1 100 Continue\r\n\r\n")
+end
+
 ---@type function
 ---@param status integer
 ---@param message string?
-local function exit(status, message)
+---@param digest string?
+local function exit(status, message, digest)
     local status_strings = {
         [200] = "OK",
         [201] = "Created",
@@ -68,8 +74,12 @@ local function exit(status, message)
         -- No Content should not have a body
         message = nil
     end
+    if digest then
+        table.insert(response, string.format("Digest: %s\r\n", digest))
+    end
     if message then
         table.insert(response, string.format("Content-Length: %d\r\n", #message))
+        table.insert(response, "Content-Type: text/plain\r\n")
         table.insert(response, "\r\n")
         table.insert(response, message)
     else
@@ -83,13 +93,19 @@ if not reader then
     return exit(ngx.HTTP_INTERNAL_SERVER_ERROR, "failed to get the request body reader")
 end
 
-err = fileutil.sink_to_file(file_path, reader)
+local adler32 = nil
+err, adler32 = fileutil.sink_to_file(file_path, reader)
 if err then
     return exit(ngx.HTTP_INTERNAL_SERVER_ERROR, err)
+end
+
+local digest = nil
+if ngx.var.http_want_digest == "adler32" then
+    digest = string.format("adler32=%s", adler32)
 end
 
 if metadata.exists then
     return exit(ngx.HTTP_NO_CONTENT)
 end
 
-return exit(ngx.HTTP_CREATED, "file created")
+return exit(ngx.HTTP_CREATED, "file created", digest)
