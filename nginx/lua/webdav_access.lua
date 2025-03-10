@@ -2,6 +2,13 @@ local ngx = require("ngx")
 local openidc = require("resty.openidc")
 local config = require("config")
 
+if not ngx.var.http_authorization then
+    ngx.status = ngx.HTTP_UNAUTHORIZED
+    ngx.header["WWW-Authenticate"] = 'Bearer realm=storage'
+    ngx.say("no authorization header provided")
+    return ngx.exit(ngx.OK)
+end
+
 local opts = {
     public_key = config.data.openidc_pubkey,
 }
