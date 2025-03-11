@@ -18,7 +18,7 @@ def test_crud_file(
 
     response = httpx.put(path, headers=wlcg_create_header, content=data)
     assert_status(response, httpx.codes.CREATED)
-    assert response.text == "file created"
+    assert response.text == "file created\n"
 
     response = httpx.get(path, headers=wlcg_create_header)
     assert_status(response, httpx.codes.OK)
@@ -96,3 +96,22 @@ def test_put_wantdigest(
     response = httpx.put(path, headers=headers, content=data)
     assert_status(response, httpx.codes.CREATED)
     assert response.headers["Digest"] == f"adler32={expected_adler32:08x}"
+
+
+def test_put_mkdir(
+    nginx_server: str,
+    wlcg_create_header: dict[str, str],
+):
+    path = f"{nginx_server}/test_mkdir/blah.txt"
+    data = "Hello, world!" * 1000
+
+    response = httpx.put(path, headers=wlcg_create_header, content=data)
+    assert_status(response, httpx.codes.CREATED)
+    assert response.text == "file created\n"
+
+    path = f"{nginx_server}/test_mkdir/blah.txt/more.txt"
+    data = "Hello, world!" * 1000
+
+    response = httpx.put(path, headers=wlcg_create_header, content=data)
+    assert_status(response, httpx.codes.INTERNAL_SERVER_ERROR)
+    assert response.text == "failed to open file: /var/www/webdav/test_mkdir/blah.txt/more.txt: Not a directory\n"
