@@ -17,3 +17,8 @@ def test_hello(nginx_server: str, wlcg_read_header: dict[str, str]):
     response = httpx.get(f"{nginx_server}/hello.txt", headers=wlcg_read_header)
     assert_status(response, httpx.codes.OK)
     assert response.text == "Hello, world!"
+
+
+def test_list(nginx_server: str, wlcg_read_header: dict[str, str]):
+    response = httpx.get(f"{nginx_server}", headers=wlcg_read_header)
+    assert_status(response, httpx.codes.OK)
