@@ -1,0 +1,15 @@
+lua_ssl_trusted_certificate /etc/grid-security/certificates;
+
+ssl_session_cache   shared:SSL:10m;
+ssl_session_timeout 10m;
+
+server {
+    listen              8443 ssl;
+    server_name         www.example.com;
+    keepalive_timeout   70;
+
+    ssl_certificate     /etc/grid-security/hostcert.pem;
+    ssl_certificate_key /etc/grid-security/hostkey.pem;
+    ssl_protocols       TLSv1.2 TLSv1.3;
+    ssl_ciphers         HIGH:!aNULL:!MD5;
+}
