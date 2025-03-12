@@ -34,6 +34,8 @@ RUN /usr/local/openresty/luajit/bin/luarocks install luaposix
 
 RUN /usr/local/openresty/luajit/bin/luarocks install lua-resty-openidc
 
+RUN /usr/local/openresty/luajit/bin/luarocks install lua-zlib
+
 FROM docker.io/almalinux:9
 
 RUN yum install -y pcre openssl zlib dnsmasq \
