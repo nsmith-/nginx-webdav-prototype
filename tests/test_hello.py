@@ -3,6 +3,21 @@ import httpx
 from .util import assert_status
 
 
+def test_nonwebdav(nginx_server: str):
+    bare = nginx_server.removesuffix("webdav")
+    paths = [
+        "hello.txt",
+        "hello",
+        "hello/",
+        "hello/blah",
+        "hello/blah.txt",
+        "webdav_not",
+    ]
+    for path in paths:
+        response = httpx.get(f"{bare}/{path}")
+        assert_status(response, httpx.codes.NOT_FOUND)
+
+
 def test_hello_unauthorized(nginx_server: str):
     response = httpx.get(f"{nginx_server}/hello.txt")
     assert_status(response, httpx.codes.UNAUTHORIZED)
