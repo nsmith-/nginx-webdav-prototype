@@ -13,6 +13,7 @@ if [ "$USE_SSL" == "true" ]; then
   cat <<EOF > /etc/nginx/conf.d/site.conf
 server {
     listen              $PORT ssl;
+    listen              [::]:$PORT ssl;
     server_name         $SERVER_NAME;
     ssl_certificate     $SSL_HOST_CERT;
     ssl_certificate_key $SSL_HOST_KEY;
@@ -26,6 +27,7 @@ else
   cat <<EOF > /etc/nginx/conf.d/site.conf
 server {
     listen              $PORT;
+    listen              [::]:$PORT;
     server_name         $SERVER_NAME;
 
     include /etc/nginx/conf.d/include/locations.conf;
