@@ -13,13 +13,15 @@ A docker image is available:
 docker pull ghcr.io/hepcdn/nginx-webdav:latest
 ```
 The image expects the main data directory to be bind-mounted at `/var/www/webdav`.
-It is configurable via several environment variables:
-- `SERVER_NAME` (default: localhost)
+You will likely also want to bind-mount `/etc/grid-security/` or some subset of it.
+
+The container is configurable via several environment variables:
+- `SERVER_NAME` (default: `localhost`)
 - `USE_SSL` (true/false, default: false)
-- `PORT` (default: 8080)
-- `SSL_HOST_CERT` (default: /etc/grid-security/hostcert.pem)
-- `SSL_HOST_KEY` (default: /etc/grid-security/hostkey.pem)
-- `SSL_CERT_DIR` (default: /etc/grid-security/certificates)
+- `PORT` (default: `8080`)
+- `SSL_HOST_CERT` (default: `/etc/grid-security/hostcert.pem`)
+- `SSL_HOST_KEY` (default: `/etc/grid-security/hostkey.pem`)
+- `SSL_CERT_DIR` (default: `/etc/grid-security/certificates`)
 - `DEBUG` (true/false, default: false)
 
 See `nginx/docker-entrypoint.sh` for further details.
