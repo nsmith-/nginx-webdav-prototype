@@ -2,3 +2,4 @@ nging/lua/config.json
 *.pyc
 data/
 .vscode/
+site.conf

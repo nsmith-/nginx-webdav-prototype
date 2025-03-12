@@ -1,2 +1,4 @@
 user root;
 worker_processes auto;
+env TZ;
+env SSL_CERT_DIR;

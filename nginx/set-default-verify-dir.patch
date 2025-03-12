@@ -1,0 +1,21 @@
+920c920,927
+<     if (SSL_CTX_load_verify_locations(ssl->ctx, (char *) cert->data, NULL)
+---
+>     if (SSL_CTX_set_default_verify_dir(ssl->ctx) == 0)
+>     {
+>         ngx_ssl_error(NGX_LOG_EMERG, ssl->log, 0,
+>                       "SSL_CTX_set_default_verify_dir() failed");
+>         return NGX_ERROR;
+>     }
+> 
+>     if (SSL_CTX_load_verify_file(ssl->ctx, (char *) cert->data)
+967c974,980
+<     if (SSL_CTX_load_verify_locations(ssl->ctx, (char *) cert->data, NULL)
+---
+>     if (SSL_CTX_set_default_verify_dir(ssl->ctx) == 0)
+>     {
+>         ngx_ssl_error(NGX_LOG_EMERG, ssl->log, 0,
+>                       "SSL_CTX_set_default_verify_dir() failed");        return NGX_ERROR;
+>     }
+> 
+>     if (SSL_CTX_load_verify_file(ssl->ctx, (char *) cert->data)

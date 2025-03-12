@@ -14,7 +14,6 @@ local function third_party_pull(source_uri, destination_localpath, redirects)
     -- when false we don't error when the remote server fails to provide
     -- an RFC 3230 compliant checksum in the response headers
     local verify_checksum = true
-    ngx.log(ngx.WARN, "Checksum verification: ", ngx.var.http_requirechecksumverification)
     if ngx.var.http_requirechecksumverification == "false" then
         verify_checksum = false
     end
@@ -32,12 +31,17 @@ local function third_party_pull(source_uri, destination_localpath, redirects)
     ngx.header["Content-Type"] = "text/perf-marker-stream"
 
     -- First establish a connection
-    local scheme, host, port, path = table.unpack(httpc:parse_uri(source_uri))
+    local parsed_uri, err = httpc:parse_uri(source_uri)
+    if not parsed_uri then
+        ngx.say("failure: failed to parse URI: " .. err)
+        return ngx.exit(ngx.OK)
+    end
+    local scheme, host, port, path = table.unpack(parsed_uri)
     local ok, err, ssl_session = httpc:connect({
         scheme = scheme,
         host = host,
         port = port,
-        ssl_verify = false, -- FIXME: disable SSL verification for testing
+        ssl_verify = true,
     })
     if not ok then
         ngx.say("failure: connection to " .. host .. ":" .. port .. " failed: " .. err)
@@ -65,6 +69,7 @@ local function third_party_pull(source_uri, destination_localpath, redirects)
     end
 
     local is_redirect = res.status == 301 or res.status == 302 or res.status == 303 or res.status == 307 or res.status == 308
+    redirects = redirects or 0
     if is_redirect and redirects < config.data.tpc_redirect_limit then
         return third_party_pull(res.headers["Location"], destination_localpath, redirects + 1)
     end
