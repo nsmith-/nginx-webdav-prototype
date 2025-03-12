@@ -47,6 +47,8 @@ server {
 EOF
 fi
 
+export SSL_CERT_DIR=$SSL_CERT_DIR
+
 # Start a dns server (just for respecting /etc/hosts)
 dnsmasq -kd &
 # Let nginx take over
