@@ -1,5 +1,6 @@
 local ffi = require("ffi")
 local config = require("config")
+local zlib = require("zlib")
 
 -- some lua-isms added from https://github.com/user-none/lua-hashings/
 
@@ -51,34 +52,28 @@ end
 
 
 ---@type function
----@return {a: integer, b: integer} state
+---@return function state
 ---Makes a blank adler32 state
 function cksumutil.adler32_initialize()
-  return {a=1, b=0}
+  return zlib.adler32()
 end
 
 ---@type function
----@param state {a: integer, b: integer}
+---@param state function
 ---@param buf string
----@return {a: integer, b: integer} state
+---@return function state
 ---increments state with the value in buf
 function cksumutil.adler32_increment(state, buf)
-  -- State is a = 1, b = 0 for first call
-  local mod_adler = 65521
-  for i=1,#buf do
-    local c = string.byte(buf, i)
-    state.a = (state.a + c) % mod_adler
-    state.b = (state.b + state.a) % mod_adler
-  end
+  state(buf)
   return state
 end
 
 ---@type function
----@param state {a: integer, b: integer}
+---@param state function
 ---@return string adler32
 ---Export adler32 state as hex string
 function cksumutil.adler32_to_string(state)
-  local digest = bit.bor(bit.lshift(state.b, 16), state.a)
+  local digest = state()
   local bytes = {
     bit.band(bit.rshift(digest,24), 0xFF),
     bit.band(bit.rshift(digest,16), 0xFF),
