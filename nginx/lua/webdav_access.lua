@@ -11,6 +11,7 @@ end
 
 local opts = {
     public_key = config.data.openidc_pubkey,
+    token_signing_alg_values_expected = { "RS256" }
 }
 -- call bearer_jwt_verify for OAuth 2.0 JWT validation
 local res, err = openidc.bearer_jwt_verify(opts)
